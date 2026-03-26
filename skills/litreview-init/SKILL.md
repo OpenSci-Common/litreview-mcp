@@ -83,9 +83,9 @@ Factors are divided into two categories:
 
 | Type         | Description                          | Example                          |
 |--------------|--------------------------------------|----------------------------------|
-| `query`      | Core keyword or concept (sub_type: topic/method/concept) | "transformer attention mechanism"|
-| `keyword`    | Supplementary keyword (appended to query) | "few-shot learning"          |
-| `method`     | Specific technique (appended to query) | "retrieval-augmented generation"|
+| `query`      | Core keyword or concept (sub_type: topic/concept) | "transformer attention mechanism"|
+| `keyword`    | Supplementary keyword (own search round)  | "few-shot learning"          |
+| `method`     | Specific technique (own search round)    | "retrieval-augmented generation"|
 | `author`     | Target researcher                    | "Yoshua Bengio"                  |
 | `venue`      | Journal or conference                | "NeurIPS", "Nature"              |
 | `seed_paper` | Known paper for citation tracing     | DOI or title of a paper          |
@@ -214,13 +214,13 @@ For each confirmed factor, call `lr_factor_add`. Use appropriate `query_role`:
 
 ```
 lr_factor_add(type="query", value="large language model reasoning", query_role="primary", sub_type="topic")
-lr_factor_add(type="query", value="chain-of-thought prompting", query_role="primary", sub_type="method")
+lr_factor_add(type="method", value="chain-of-thought prompting", query_role="primary")
 lr_factor_add(type="field", value="artificial intelligence", query_role="filter")
 lr_factor_add(type="year_range", value="2022-2026", query_role="filter")
 ```
 
 Notes:
-- For `query` type, set `sub_type` to `"topic"`, `"method"`, or `"concept"` to help organize factors.
+- For `query` type, set `sub_type` to `"topic"` or `"concept"` to help organize factors. Use `type="method"` (not sub_type) for specific techniques.
 - Seed papers should be registered with type `seed_paper` and the paper's DOI or title as value.
 - Call factors one by one; handle any errors before proceeding.
 
@@ -332,7 +332,7 @@ Triggered by: "添加因子", "add factor", "新增关键词", "加个过滤条�
 5. Register via `lr_factor_add`
 
 ```
-lr_factor_add(path="<project_path>", type="query", value="prompt engineering", query_role="primary", sub_type="method")
+lr_factor_add(path="<project_path>", type="method", value="prompt engineering", query_role="primary")
 ```
 
 After adding, confirm:
