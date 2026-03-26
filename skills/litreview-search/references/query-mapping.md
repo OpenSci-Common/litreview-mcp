@@ -9,14 +9,50 @@ This reference table maps litreview factor types to the corresponding parameters
 | Factor Type  | `search_semantic`              | `search_openalex`               | `snowball_search`         | Notes                                      |
 |--------------|-------------------------------|----------------------------------|---------------------------|--------------------------------------------|
 | `query`      | `query=value`                 | `query=value`                   | N/A                       | Primary search string; use for both APIs   |
-| `keyword`    | Append to `query`             | Append to `query`               | N/A                       | Combine with `query` using AND/OR          |
-| `author`     | `author=value`                | `author.display_name=value`     | N/A                       | May need to search by author ID in OA      |
-| `venue`      | `venue=value`                 | `primary_location.source.display_name=value` | N/A      | Conference or journal name                 |
-| `field`      | `fields_of_study=value`       | `primary_topic.display_name=value` | N/A                    | Academic field classification              |
+| `keyword`    | `query=value`                 | `query=value`                   | N/A                       | Own search round; same API param as query  |
+| `author`     | `author=value`                | `authorships_author_display_name=value` | N/A               | Axis-type: co-attaches to keyword rounds   |
+| `venue`      | `venue=value`                 | `primary_location_source_display_name=value` | N/A      | Axis-type: co-attaches to keyword rounds   |
+| `field`      | `fields_of_study=value`       | `primary_topic_display_name=value` | N/A                    | Academic field classification              |
 | `year_range` | `year=start-end`              | `publication_year=start-end`    | N/A                       | Format: "2020-2024" → "2020:2024" in OA    |
-| `seed_paper` | N/A                           | N/A                             | `paper_id=doi_or_id`      | Use for forward/backward citation tracking |
+| `seed_paper` | N/A                           | N/A                             | `paper_id=doi_or_id`      | Use for forward/backward/both citation tracking |
+| `method`     | `query=value`                 | `query=value`                   | N/A                       | Own search round; same API param as query  |
 | `exclude`    | Filter post-retrieval         | Filter post-retrieval           | Filter post-retrieval     | Remove matching papers from results        |
-| `method`     | Append to `query`             | Append to `query`               | N/A                       | Treat as conceptual keyword                |
+| `pub_type`   | `publicationTypes=<s2_type>`  | `type=<oa_type>`                | N/A                       | See type mapping table below               |
+| `open_access`| `openAccessPdf` (boolean)     | `is_oa=true`                    | N/A                       | Filter for freely available PDFs           |
+| `citation_min`| `minCitationCount=N`         | `cited_by_count=">N-1"`         | N/A                       | OA uses > operator, subtract 1             |
+| `institution`| ❌ NOT SUPPORTED               | `authorships_institutions_id=<oa_id>` | N/A              | OA only. Resolve ID via `/institutions?search=` |
+| `language`   | ❌ NOT SUPPORTED               | `language=<iso_code>`           | N/A                       | OA only. ISO 639-1 code (e.g. "en", "zh") |
+| `funder`     | ❌ NOT SUPPORTED               | `awards_funder=<oa_id>`        | N/A                       | OA only. Resolve ID via `/funders?search=` |
+
+---
+
+## pub_type Cross-API Mapping
+
+When a `pub_type` filter is active, translate the user-facing label to the API-specific value:
+
+| User-facing label     | `search_semantic` value | `search_openalex` value |
+|-----------------------|-------------------------|--------------------------|
+| Journal article       | `JournalArticle`        | `article`                |
+| Conference paper      | `Conference`            | `article`                |
+| Review / survey       | `Review`                | `article` (+ keyword)   |
+| Book                  | `Book`                  | `book`                   |
+| Book chapter          | —                       | `book-chapter`           |
+| Preprint              | —                       | `preprint`               |
+| Dataset               | `Dataset`               | `dataset`                |
+| Dissertation / thesis | —                       | `dissertation`           |
+| Clinical trial        | `ClinicalTrial`         | —                        |
+| Meta-analysis         | `MetaAnalysis`          | —                        |
+
+> When a type is unsupported by one API (marked —), omit it from that API's query and inform the user.
+
+---
+
+## API-Limited Filter Warning
+
+When `institution`, `language`, or `funder` filters are active, the agent MUST:
+1. Include the filter in the OpenAlex query
+2. Omit the filter from the Semantic Scholar query
+3. Inform the user: "⚠️ [filter] 仅 OpenAlex 支持，Semantic Scholar 结果未应用此过滤。"
 
 ---
 
@@ -26,11 +62,14 @@ This reference table maps litreview factor types to the corresponding parameters
 
 ```
 search_semantic(
-  query="<query> <keyword> <method>",    # Combined keyword string
+  query="<single_primary_value>",          # ONE primary factor per round (do NOT combine multiple)
   author="<author_name>",                 # Optional: filter by author
   venue="<venue_name>",                   # Optional: filter by venue
   fields_of_study=["<field>"],            # Optional: list of fields
   year="<start>-<end>",                  # Optional: e.g. "2020-2024"
+  publicationTypes="<type>",             # Optional: e.g. "JournalArticle", "Review"
+  openAccessPdf=true,                    # Optional: only open-access papers
+  minCitationCount=<N>,                  # Optional: minimum citations
   limit=50                                # Results per call (max 100)
 )
 ```
@@ -38,22 +77,29 @@ search_semantic(
 - Supports rich keyword search with boolean operators
 - `fields_of_study` accepts Semantic Scholar taxonomy values (e.g., "Computer Science", "Medicine")
 - `year` is a range string: "2020-2024"
+- Does NOT support: `institution`, `language`, `funder` filters
 
 ### search_openalex (OpenAlex)
 
 ```
 search_openalex(
-  query="<query> <keyword> <method>",             # Combined keyword string
+  query="<single_primary_value>",                   # ONE primary factor per round (do NOT combine multiple)
   publication_year="<start>-<end>",               # Optional: year range
   primary_topic_display_name="<field>",           # Optional: topic/field filter
   primary_location_source_display_name="<venue>", # Optional: journal/conference
   authorships_author_display_name="<author>",     # Optional: author name
+  type="<oa_type>",                               # Optional: e.g. "article", "review", "book"
+  is_oa=true,                                      # Optional: only open-access papers
+  cited_by_count=">N-1",                          # Optional: OA uses >, subtract 1 from user's minimum (e.g., min 50 → ">49")
+  authorships_institutions_id="<oa_id>",          # Optional: institution filter (resolve ID first)
+  language="<iso_code>",                           # Optional: e.g. "en", "zh"
+  awards_funder="<oa_id>",                         # Optional: funder filter (resolve ID first)
   limit=50                                         # Results per call
 )
 ```
 
-- OpenAlex has extensive filtering; prefer it for field/venue-specific searches
-- Supports institution, funder, and open-access filters (not mapped to factors but available manually)
+- OpenAlex has the most extensive filtering options
+- Supports all filter types including `institution`, `language`, `funder` (which S2 does not)
 
 ### snowball_search (Citation Expansion)
 
@@ -127,7 +173,7 @@ snowball_search(paper_id="10.1038/s41586-021-03819-2", direction="both", limit=3
 
 ---
 
-### Example 4: Multi-Keyword Combined Query
+### Example 4: Multiple Primary Factors — Round-by-Round
 
 **Factors:**
 - `query`: "knowledge graph"
@@ -135,12 +181,27 @@ snowball_search(paper_id="10.1038/s41586-021-03819-2", direction="both", limit=3
 - `keyword`: "entity alignment"
 - `field`: "computer science"
 
-**Combined query string:** `"knowledge graph graph neural network entity alignment"`
+**⚠️ Do NOT combine into one query.** Each primary factor gets its own search round:
 
-**Semantic Scholar call:**
+**Round 1 — query "knowledge graph":**
 ```
-search_semantic(query="knowledge graph graph neural network entity alignment", fields_of_study=["Computer Science"], limit=50)
+search_semantic(query="knowledge graph", fields_of_study=["Computer Science"], limit=50)
+search_openalex(query="knowledge graph", primary_topic_display_name="computer science", limit=50)
 ```
+
+**Round 2 — method "graph neural network":**
+```
+search_semantic(query="graph neural network", fields_of_study=["Computer Science"], limit=50)
+search_openalex(query="graph neural network", primary_topic_display_name="computer science", limit=50)
+```
+
+**Round 3 — keyword "entity alignment":**
+```
+search_semantic(query="entity alignment", fields_of_study=["Computer Science"], limit=50)
+search_openalex(query="entity alignment", primary_topic_display_name="computer science", limit=50)
+```
+
+Results from all rounds are combined and deduplicated via `lr_search_ingest`.
 
 ---
 
