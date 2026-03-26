@@ -39,11 +39,10 @@
 #### author
 - **Role**: primary (axis-type — can co-attach to keyword rounds as intersection param; see Rule 2)
 - **Value format**: Person name string (e.g., "Yoshua Bengio")
-- **Requires ID resolution**: YES — must resolve name to API entity ID before searching.
-- **API translation** (two-step):
-  - S2: Step 1: `GET /author/search?query={value}` → extract `authorId` from top result. Step 2: `GET /author/{authorId}/papers?fields=...`
-  - OA: Step 1: `GET /authors?search={value}` → extract `id` from top result. Step 2: `GET /works?filter=authorships.author.id:{id}`
-- **ID caching**: After first resolution, store IDs in factor's `api_ids` field. Skip resolution on subsequent searches.
+- **API translation**:
+  - S2: `author={value}` — accepts display name directly
+  - OA: `authorships_author_display_name={value}` — accepts display name directly; the MCP tool handles ID resolution internally
+- **ID caching**: If the MCP tool resolves an author ID, it may be cached in the factor's `api_ids` field for faster subsequent searches.
 - **Disambiguation**: If name resolution returns multiple candidates, present top 3-5 to user with affiliations and paper counts. Let user select the correct person.
 - **Validation**: Non-empty string. If `api_ids` is empty, must resolve before searching.
 - **User explanation template**: "This will find all papers authored by this researcher. The system first identifies the researcher in academic databases, then retrieves their publication list."
@@ -51,11 +50,10 @@
 #### venue
 - **Role**: primary (axis-type — can co-attach to keyword rounds as intersection param; see Rule 2)
 - **Value format**: Journal or conference name (e.g., "NeurIPS", "Nature Machine Intelligence")
-- **Requires ID resolution**: Only for OpenAlex (S2 accepts venue name directly).
 - **API translation**:
-  - S2: `venue={value}` as filter parameter on paper search
-  - OA: Step 1: `GET /sources?search={value}` → extract `id`. Step 2: `filter=primary_location.source.id:{id}`
-- **ID caching**: Cache OA source ID in `api_ids.openalex_id`.
+  - S2: `venue={value}` — accepts venue name directly
+  - OA: `primary_location_source_display_name={value}` — accepts venue name directly; the MCP tool handles ID resolution internally
+- **ID caching**: If the MCP tool resolves a source ID, it may be cached in `api_ids.openalex_id`.
 - **Validation**: Non-empty string. Warn if venue name is ambiguous (e.g., "Nature" matches many sub-journals).
 - **User explanation template**: "This will find papers published in this specific journal or conference. You can use it alone to browse a venue's publications, or combine with keywords to search within it."
 
