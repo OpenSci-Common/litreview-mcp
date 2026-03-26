@@ -10,31 +10,6 @@ from tinydb import Query, TinyDB
 from litreview.models import SearchFactor
 from litreview.utils import generate_id
 
-# ---------------------------------------------------------------------------
-# API support map
-# Both S2 and OpenAlex
-_BOTH_APIS = ["semantic_scholar", "openalex"]
-# OpenAlex only
-_OA_ONLY = ["openalex"]
-
-_API_SUPPORT_MAP: Dict[str, List[str]] = {
-    "query": _BOTH_APIS,
-    "author": _BOTH_APIS,
-    "venue": _BOTH_APIS,
-    "seed_paper": _BOTH_APIS,
-    "field": _BOTH_APIS,
-    "pub_type": _BOTH_APIS,
-    "year_range": _BOTH_APIS,
-    "open_access": _BOTH_APIS,
-    "citation_min": _BOTH_APIS,
-    "keyword": _BOTH_APIS,
-    "concept": _BOTH_APIS,
-    # OpenAlex only
-    "institution": _OA_ONLY,
-    "funder": _OA_ONLY,
-    "language": _OA_ONLY,
-}
-
 
 def _sf_db(base_path: Path) -> TinyDB:
     return TinyDB(str(base_path / ".litreview" / "search_factors.json"))
@@ -77,7 +52,6 @@ def add_factor(
             query_role=query_role,
             sub_type=sub_type,
             api_ids=api_ids or {},
-            api_support=list(_API_SUPPORT_MAP.get(type, _BOTH_APIS)),
             provenance=provenance,
             promoted_from=promoted_from,
             created_by=created_by,
@@ -182,13 +156,11 @@ def remove_factor(base_path: Any, factor_id: str) -> dict:
 
 def compose_query(
     base_path: Any,
-    api_sources: Optional[List[str]] = None,
 ) -> dict:
     """Compose a search query from active factors.
 
     Separates factors into *primary* (must/should/primary query_role) and
-    *filter* groups. If ``api_sources`` is given, only factors supported by
-    at least one of those APIs are included.
+    *filter* groups. The Skill layer decides which search sources to use.
 
     Returns:
         Dict with keys:
@@ -200,13 +172,6 @@ def compose_query(
     """
     base_path = Path(base_path)
     active_factors = list_factors(base_path, active_only=True)
-
-    # Filter by api_sources if provided
-    if api_sources:
-        active_factors = [
-            f for f in active_factors
-            if any(api in f.get("api_support", []) for api in api_sources)
-        ]
 
     primary_queries: List[str] = []
     filters: Dict[str, List[str]] = {}

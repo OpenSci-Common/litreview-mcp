@@ -107,16 +107,13 @@ def lr_factor_remove(path: str = ".", factor_id: str = "") -> dict:
 
 
 @mcp.tool()
-def lr_factor_compose_query(
-    path: str = ".",
-    api_sources: Optional[List[str]] = None,
-) -> dict:
+def lr_factor_compose_query(path: str = ".") -> dict:
     """Compose a search query from active factors.
 
     Returns primary_queries, filters, combined_query, factor_ids, and
-    factor_roles. Optionally filter by api_sources (e.g. ["semantic_scholar"]).
+    factor_roles. The Skill layer decides which search sources to call.
     """
-    return factors.compose_query(base_path=path, api_sources=api_sources)
+    return factors.compose_query(base_path=path)
 
 
 # ---------------------------------------------------------------------------

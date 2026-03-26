@@ -83,41 +83,11 @@ class TestAddFactor:
         factors = list_factors(ws)
         assert len(factors) == 2
 
-    def test_add_infers_api_support_for_keyword(self, tmp_path: Path):
+    def test_add_does_not_infer_api_support(self, tmp_path: Path):
+        """api_support is no longer auto-inferred; Skill layer decides search sources."""
         ws = _workspace(tmp_path)
         result = add_factor(ws, type="keyword", value="deep learning", query_role="must")
-        assert "semantic_scholar" in result["api_support"]
-        assert "openalex" in result["api_support"]
-
-    def test_add_infers_api_support_for_author(self, tmp_path: Path):
-        ws = _workspace(tmp_path)
-        result = add_factor(ws, type="author", value="LeCun", query_role="must")
-        assert "semantic_scholar" in result["api_support"]
-        assert "openalex" in result["api_support"]
-
-    def test_add_infers_api_support_for_institution_oa_only(self, tmp_path: Path):
-        ws = _workspace(tmp_path)
-        result = add_factor(ws, type="institution", value="MIT", query_role="filter")
-        assert "openalex" in result["api_support"]
-        assert "semantic_scholar" not in result["api_support"]
-
-    def test_add_infers_api_support_for_language_oa_only(self, tmp_path: Path):
-        ws = _workspace(tmp_path)
-        result = add_factor(ws, type="language", value="en", query_role="filter")
-        assert "openalex" in result["api_support"]
-        assert "semantic_scholar" not in result["api_support"]
-
-    def test_add_infers_api_support_for_venue(self, tmp_path: Path):
-        ws = _workspace(tmp_path)
-        result = add_factor(ws, type="venue", value="NeurIPS", query_role="filter")
-        assert "semantic_scholar" in result["api_support"]
-        assert "openalex" in result["api_support"]
-
-    def test_add_infers_api_support_for_year_range(self, tmp_path: Path):
-        ws = _workspace(tmp_path)
-        result = add_factor(ws, type="year_range", value="2020-2024", query_role="filter")
-        assert "semantic_scholar" in result["api_support"]
-        assert "openalex" in result["api_support"]
+        assert result["api_support"] == []
 
     def test_add_with_api_ids(self, tmp_path: Path):
         ws = _workspace(tmp_path)
@@ -297,28 +267,14 @@ class TestComposeQuery:
         assert r["id"] in result["factor_roles"]
         assert result["factor_roles"][r["id"]] == "primary"
 
-    def test_compose_api_sources_filter(self, tmp_path: Path):
+    def test_compose_includes_all_active_factors(self, tmp_path: Path):
+        """compose_query returns all active factors; source selection is Skill's job."""
         ws = _workspace(tmp_path)
         add_factor(ws, type="keyword", value="k1", query_role="primary")
         add_factor(ws, type="institution", value="MIT", query_role="filter")
-        # institution only supported by openalex
-        result_s2 = compose_query(ws, api_sources=["semantic_scholar"])
-        result_oa = compose_query(ws, api_sources=["openalex"])
-        # institution factor should appear in openalex result but not in s2
-        institution_in_s2 = any(
-            f.get("type") == "institution"
-            for fid in result_s2["factor_ids"]
-            for f in list_factors(ws)
-            if f["id"] == fid
-        )
-        institution_in_oa = any(
-            f.get("type") == "institution"
-            for fid in result_oa["factor_ids"]
-            for f in list_factors(ws)
-            if f["id"] == fid
-        )
-        assert not institution_in_s2
-        assert institution_in_oa
+        result = compose_query(ws)
+        assert len(result["factor_ids"]) == 2
+        assert "institution" in result["filters"]
 
     def test_compose_must_role_included_in_primary(self, tmp_path: Path):
         ws = _workspace(tmp_path)
