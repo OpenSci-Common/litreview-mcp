@@ -71,6 +71,8 @@ class Paper:
     citation_count: Optional[int] = None
     fields_of_study: List[str] = field(default_factory=list)
     open_access_status: Optional[str] = None  # "gold" | "green" | "closed" | None
+    url: Optional[str] = None  # paper landing page (e.g. S2/OA/arxiv URL)
+    pdf_url: Optional[str] = None  # direct PDF link if available
     pdf_status: str = "unknown"  # "available" | "downloaded" | "unavailable" | "unknown"
     pdf_path: Optional[str] = None
     status: str = "candidate"  # "candidate" | "included" | "excluded" | "pending"
