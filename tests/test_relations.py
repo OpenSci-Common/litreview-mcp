@@ -8,11 +8,14 @@ from pathlib import Path
 import pytest
 
 from litreview.relations import (
+    _author_names_match,
     _content_hash,
     _factor_set_hash,
+    _find_matching_author,
     _stable_id,
     build_graph_data,
     check_cache,
+    deduplicate_factors,
     load_cache,
     render_html,
     save_cache,
@@ -64,6 +67,96 @@ PAPER_FACTOR_MAP = {
 
 
 # --- _stable_id ---
+
+
+# --- Author fuzzy matching ---
+
+
+class TestAuthorNamesMatch:
+    def test_exact_match(self):
+        assert _author_names_match("bob jones", "bob jones")
+
+    def test_typo(self):
+        assert _author_names_match("bob jonse", "bob jones")
+
+    def test_initial_expansion(self):
+        assert _author_names_match("b. jones", "bob jones")
+
+    def test_initial_no_dot(self):
+        assert _author_names_match("b jones", "bob jones")
+
+    def test_reverse_initial(self):
+        assert _author_names_match("bob jones", "b. jones")
+
+    def test_name_order_swap(self):
+        assert _author_names_match("jones, bob", "bob jones")
+
+    def test_different_people(self):
+        assert not _author_names_match("alice smith", "bob jones")
+
+    def test_same_surname_different_first(self):
+        assert not _author_names_match("alice jones", "bob jones")
+
+    def test_short_names_no_false_positive(self):
+        assert not _author_names_match("a. li", "b. li")
+
+
+class TestFindMatchingAuthor:
+    def test_exact_hit(self):
+        existing = {"bob jones": "aid_1"}
+        assert _find_matching_author("Bob Jones", existing) == "bob jones"
+
+    def test_fuzzy_hit(self):
+        existing = {"bob jones": "aid_1"}
+        assert _find_matching_author("B. Jones", existing) == "bob jones"
+
+    def test_no_match(self):
+        existing = {"bob jones": "aid_1"}
+        assert _find_matching_author("Alice Smith", existing) is None
+
+    def test_empty_existing(self):
+        assert _find_matching_author("Bob Jones", {}) is None
+
+
+# --- Factor fuzzy dedup ---
+
+
+class TestDeduplicateFactors:
+    def test_no_duplicates(self):
+        canonical, mapping = deduplicate_factors(["DeFi", "blockchain", "RWA"])
+        assert len(canonical) == 3
+
+    def test_spelling_variant(self):
+        canonical, mapping = deduplicate_factors(
+            ["financial inclusion", "financial inclusions"]
+        )
+        assert len(canonical) == 1
+        assert mapping["financial inclusions"] == "financial inclusion"
+
+    def test_preserves_first_as_canonical(self):
+        canonical, mapping = deduplicate_factors(
+            ["blockchain finance", "blockchain finances"]
+        )
+        assert canonical[0] == "blockchain finance"
+
+    def test_semantic_synonyms_not_merged(self):
+        """DeFi and decentralized finance are semantically similar but
+        string-level different — code-level dedup should NOT merge them."""
+        canonical, mapping = deduplicate_factors(
+            ["DeFi", "decentralized finance"]
+        )
+        assert len(canonical) == 2
+
+    def test_empty_input(self):
+        canonical, mapping = deduplicate_factors([])
+        assert canonical == []
+        assert mapping == {}
+
+    def test_mapping_complete(self):
+        values = ["a", "b", "c"]
+        _, mapping = deduplicate_factors(values)
+        for v in values:
+            assert v.lower() in mapping
 
 
 class TestStableId:
@@ -146,6 +239,44 @@ class TestBuildGraphData:
         author_nodes = [n for n in result["nodes"] if n["type"] == "author"]
         labels = {n["label"].lower() for n in author_nodes}
         assert "charlie brown" in labels
+
+    def test_author_fuzzy_dedup_initial(self):
+        """B. Jones and Bob Jones should merge into one author node."""
+        papers = [
+            {
+                "paper_id": "p1", "title": "Paper 1",
+                "authors": [{"name": "Bob Jones"}], "abstract": "x",
+            },
+            {
+                "paper_id": "p2", "title": "Paper 2",
+                "authors": [{"name": "B. Jones"}], "abstract": "y",
+            },
+        ]
+        result = build_graph_data(papers, [])
+        author_nodes = [n for n in result["nodes"] if n["type"] == "author"]
+        assert len(author_nodes) == 1
+        # Canonical should be "Bob Jones" (longer)
+        assert author_nodes[0]["label"] == "Bob Jones"
+        # Both papers should connect to the same author
+        authored_edges = [e for e in result["edges"] if e["type"] == "authored"]
+        assert len(authored_edges) == 2
+        assert authored_edges[0]["from"] == authored_edges[1]["from"]
+
+    def test_factor_fuzzy_dedup_spelling(self):
+        """Spelling variants like 'inclusions' vs 'inclusion' should merge."""
+        factors = ["financial inclusion", "financial inclusions"]
+        result = build_graph_data([], factors)
+        factor_nodes = [n for n in result["nodes"] if n["type"] == "factor"]
+        assert len(factor_nodes) == 1
+
+    def test_factor_dedup_maps_edges_correctly(self):
+        """Edges using a deduplicated factor variant still connect."""
+        factors = ["financial inclusion", "financial inclusions"]
+        pfm = {"p1": [{"factor_value": "financial inclusions", "relevance": "high"}]}
+        papers = [{"paper_id": "p1", "title": "T", "abstract": "a"}]
+        result = build_graph_data(papers, factors, pfm)
+        relates = [e for e in result["edges"] if e["type"] == "relates_to"]
+        assert len(relates) == 1
 
     def test_empty_papers(self):
         result = build_graph_data([], FACTOR_VALUES)

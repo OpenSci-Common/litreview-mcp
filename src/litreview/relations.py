@@ -13,6 +13,8 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Optional
 
+from rapidfuzz.fuzz import ratio, token_sort_ratio
+
 from litreview.utils import normalize_authors, safe_get_author_name
 
 
@@ -35,6 +37,86 @@ def _format_authors_display(authors) -> str:
     return ""
 
 
+_AUTHOR_THRESHOLD = 85
+_FACTOR_THRESHOLD = 80
+
+
+def _author_names_match(a: str, b: str) -> bool:
+    """Check if two author names likely refer to the same person.
+
+    Handles:
+    - Fuzzy match (ratio >= 85): "Bob Jonse" ↔ "Bob Jones"
+    - Initial expansion: "B. Jones" ↔ "Bob Jones"
+    - Order swap: "Jones, Bob" ↔ "Bob Jones" (via token_sort_ratio)
+    """
+    if ratio(a, b) >= _AUTHOR_THRESHOLD:
+        return True
+    if token_sort_ratio(a, b) >= _AUTHOR_THRESHOLD:
+        return True
+    # Initial expansion: "b. jones" ↔ "bob jones"
+    parts_a = a.replace(".", " ").split()
+    parts_b = b.replace(".", " ").split()
+    if len(parts_a) < 2 or len(parts_b) < 2:
+        return False
+    # Surnames (last token) must be very close
+    if ratio(parts_a[-1], parts_b[-1]) < 90:
+        return False
+    # First token: one is an initial of the other
+    fa, fb = parts_a[0], parts_b[0]
+    if (len(fa) == 1 and fb.startswith(fa)) or (len(fb) == 1 and fa.startswith(fb)):
+        return True
+    return False
+
+
+def _find_matching_author(
+    name: str, existing: dict[str, str],
+) -> Optional[str]:
+    """Find an existing author key that fuzzy-matches the given name."""
+    name_lower = name.lower().strip()
+    if name_lower in existing:
+        return name_lower
+    for existing_name in existing:
+        if _author_names_match(name_lower, existing_name):
+            return existing_name
+    return None
+
+
+def _pick_canonical_name(current: str, new: str) -> str:
+    """Pick the more complete name as canonical (longer wins)."""
+    return new if len(new) > len(current) else current
+
+
+def deduplicate_factors(
+    factor_values: list[str], threshold: int = _FACTOR_THRESHOLD,
+) -> tuple[list[str], dict[str, str]]:
+    """Group similar factor values by fuzzy match, return canonical list + mapping.
+
+    Handles spelling variants like "financial inclusions" ↔ "financial inclusion".
+    Does NOT handle semantic synonyms ("DeFi" ↔ "decentralized finance") —
+    that requires LLM-level normalization.
+
+    Returns:
+        (canonical_list, mapping) where mapping is {original_lower: canonical_lower}.
+    """
+    canonical: list[str] = []
+    mapping: dict[str, str] = {}
+
+    for fv in factor_values:
+        fv_lower = fv.lower().strip()
+        matched = False
+        for canon in canonical:
+            canon_lower = canon.lower().strip()
+            if token_sort_ratio(fv_lower, canon_lower) >= threshold:
+                mapping[fv_lower] = canon_lower
+                matched = True
+                break
+        if not matched:
+            canonical.append(fv)
+            mapping[fv_lower] = fv_lower
+
+    return canonical, mapping
+
+
 def build_graph_data(
     papers: list[dict],
     factor_values: list[str],
@@ -55,10 +137,12 @@ def build_graph_data(
     nodes: list[dict] = []
     edges: list[dict] = []
     author_seen: dict[str, str] = {}  # name_lower -> node_id
+    author_labels: dict[str, str] = {}  # name_lower -> display label
     factor_lookup: dict[str, str] = {}  # value_lower -> node_id
 
-    # --- Factor nodes ---
-    for fv in factor_values:
+    # --- Factor nodes (with fuzzy dedup) ---
+    deduped_factors, factor_mapping = deduplicate_factors(factor_values)
+    for fv in deduped_factors:
         fid = _stable_id("factor", fv)
         factor_lookup[fv.lower().strip()] = fid
         nodes.append({"id": fid, "label": fv, "type": "factor"})
@@ -87,32 +171,49 @@ def build_graph_data(
             or 0,
         })
 
-        # Author → Paper edges
+        # Author → Paper edges (with fuzzy dedup)
         for author_dict in authors_norm:
             name = safe_get_author_name(author_dict)
             if not name:
                 continue
-            name_key = name.lower().strip()
-            if name_key not in author_seen:
+            matched_key = _find_matching_author(name, author_seen)
+            if matched_key is None:
+                # New author
+                name_key = name.lower().strip()
                 aid = _stable_id("author", name_key)
                 author_seen[name_key] = aid
+                author_labels[name_key] = name
                 nodes.append({"id": aid, "label": name, "type": "author"})
+                matched_key = name_key
+            else:
+                # Existing author — update label if new name is more complete
+                new_label = _pick_canonical_name(author_labels[matched_key], name)
+                if new_label != author_labels[matched_key]:
+                    author_labels[matched_key] = new_label
+                    # Update the node label in-place
+                    aid = author_seen[matched_key]
+                    for n in nodes:
+                        if n["id"] == aid:
+                            n["label"] = new_label
+                            break
             edges.append({
-                "from": author_seen[name_key],
+                "from": author_seen[matched_key],
                 "to": paper_node_id,
                 "type": "authored",
             })
 
-        # Factor → Paper edges (from LLM analysis)
+        # Factor → Paper edges (from LLM analysis, with fuzzy factor mapping)
         if paper_factor_map and pid in paper_factor_map:
-            for mapping in paper_factor_map[pid]:
-                fv_key = mapping.get("factor_value", "").lower().strip()
+            for mapping_entry in paper_factor_map[pid]:
+                fv_raw = mapping_entry.get("factor_value", "").lower().strip()
+                # Resolve through factor dedup mapping
+                fv_key = factor_mapping.get(fv_raw, fv_raw)
                 if fv_key in factor_lookup:
                     edges.append({
                         "from": factor_lookup[fv_key],
                         "to": paper_node_id,
                         "type": "relates_to",
-                        "relevance": mapping.get("relevance", "medium"),
+                        "relevance": mapping_entry.get("relevance", "medium"),
                     })
 
     stats = {

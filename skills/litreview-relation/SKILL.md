@@ -80,6 +80,10 @@ Produce a `new_analysis` map with this exact format:
   - **medium** — the factor is discussed or related
   - **low** — the factor is only tangentially mentioned
 - Skip factors that have no relevance to the abstract.
+- **Synonym awareness:** When matching factors to abstracts, treat semantic synonyms as matches.
+  For example, if a factor is "decentralized finance" and the abstract says "DeFi", that IS a match.
+  Similarly, "RWA" matches "real world asset", "blockchain" matches "distributed ledger technology".
+  Use the exact `factor_value` string in the output, not the synonym found in the abstract.
 
 **Efficiency:** Process all uncached papers in a single analysis pass.
 
