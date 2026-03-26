@@ -491,10 +491,11 @@ body {
 
 /* --- Stats bar --- */
 .stats-bar {
-  position: absolute; bottom: 12px; left: 12px;
+  position: absolute; bottom: 12px; left: 12px; z-index: 10;
   background: rgba(255,255,255,0.92); backdrop-filter: blur(8px);
   padding: 8px 14px; border-radius: 8px; font-size: 12px; color: #666;
   box-shadow: 0 1px 4px rgba(0,0,0,0.1);
+  pointer-events: none;
 }
 </style>
 </head>
@@ -510,9 +511,8 @@ body {
 </div>
 
 <div class="main">
-  <div id="graph-container">
-    <div class="stats-bar" id="stats-bar"></div>
-  </div>
+  <div id="graph-container"></div>
+  <div class="stats-bar" id="stats-bar"></div>
   <div id="detail-panel">
     <div class="detail-placeholder">
       Click a node to view details<br>
