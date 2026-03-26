@@ -57,7 +57,7 @@ Display format:
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 主检索因子（每个将单独搜索）:
   [1] [query/topic]  "quantum error correction"
-  [2] [query/method] "surface codes"
+  [2] [method] "surface codes"
   [3] [keyword]      "topological qubits"
   [4] [author]       "John Preskill"
 
@@ -87,39 +87,38 @@ lr_factor_compose_query(path="<project_path>")
 
 This returns `primary_queries`, `filters`, `factor_ids`, and `factor_roles`. Use this output to validate the factor types and filter parameters. Refer to `references/query-mapping.md` for the exact API parameter mapping of each filter type.
 
-Then, based on the user's selection from Step 1, build the search plan. **CRITICAL RULE: NEVER combine multiple primary query factors into one search query.** Each primary factor gets its own search round.
+Then, based on the user's selection from Step 1, build the search plan.
 
-### Case A: User selects specific factors
+**CRITICAL RULE: NEVER combine multiple keyword-type factors (query/keyword/method) into one search query.** Each keyword-type factor gets its own search round. However, `author` and `venue` factors CAN be added to a keyword round as narrowing parameters (they act as intersection filters within the same API call).
 
-Separate selected factors into primary and filter groups. Each selected primary factor becomes one search round, with all selected filters applied to every round.
+### Round construction logic
 
-### Case B: User selects "全部" (all)
-
-All primary factors are included, each as a separate round. All filter factors apply to every round.
+1. Group selected factors: keyword-type (`query`, `keyword`, `method`), axis-type (`author`, `venue`), filters (all others), and `seed_paper`.
+2. Each keyword-type factor becomes one round. If `author`/`venue` factors are also selected, attach them to each keyword round as API parameters.
+3. If only `author`/`venue` are selected (no keyword-type), each gets its own round.
+4. Each `seed_paper` gets its own round (uses citation API, not keyword search).
+5. All filter factors apply to every round.
 
 ### Search Round Plan
 
-For N selected primary factors, create N search rounds:
+Example with query + query + author + filters:
 
 ```
-检索计划（共 N 轮）：
+检索计划（共 2 轮）：
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 第 1 轮: [query/topic] "quantum error correction"
+  + author: "John Preskill"
   过滤: field=Physics, year=2022-2026
   数据源: Semantic Scholar + OpenAlex
   每源: 50 篇
 
-第 2 轮: [query/method] "surface codes"
-  过滤: field=Physics, year=2022-2026
-  数据源: Semantic Scholar + OpenAlex
-  每源: 50 篇
-
-第 3 轮: [author] "John Preskill"
+第 2 轮: [method] "surface codes"
+  + author: "John Preskill"
   过滤: field=Physics, year=2022-2026
   数据源: Semantic Scholar + OpenAlex
   每源: 50 篇
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-预计总检索: 最多 300 篇（去重后通常更少）
+预计总检索: 最多 200 篇（去重后通常更少）
 结果将自动去重合并。
 
 确认执行？（可调整轮次、数据源或返回数量）
@@ -131,23 +130,24 @@ Wait for user confirmation. Allow adjustments (remove rounds, change limits, etc
 
 ## Step 3: Execute Searches Round by Round
 
-Execute each search round sequentially. **Each round uses exactly ONE primary factor plus all selected filters.**
+Execute each search round sequentially. **Each round uses exactly ONE keyword-type factor, plus any selected author/venue as co-parameters, plus all selected filters.**
 
 For each round:
 
-### Query-type primary factor (query, keyword, method):
+### Keyword-type round (query/keyword/method), optionally with author/venue:
 ```
-search_semantic(query="<single_primary_value>", <filter_params>, max_results=50)
-search_openalex(query="<single_primary_value>", <filter_params>, max_results=50)
+search_semantic(query="<keyword_value>", author="<author>", venue="<venue>", <filter_params>, max_results=50)
+search_openalex(query="<keyword_value>", authorships_author_display_name="<author>", primary_location_source_display_name="<venue>", <filter_params>, max_results=50)
 ```
+Omit `author`/`venue` params if those factors are not selected.
 
-### Author-type primary factor:
+### Author-only round (when no keyword-type factor in this round):
 ```
 search_semantic(author="<author_name>", <filter_params>, max_results=50)
 search_openalex(authorships_author_display_name="<author_name>", <filter_params>, max_results=50)
 ```
 
-### Venue-type primary factor:
+### Venue-only round (when no keyword-type factor in this round):
 ```
 search_semantic(venue="<venue_name>", <filter_params>, max_results=50)
 search_openalex(primary_location_source_display_name="<venue_name>", <filter_params>, max_results=50)
@@ -167,7 +167,7 @@ snowball_search(paper_id=<seed_id>, direction="<forward|backward|both>", max_res
 **After each round**, briefly report progress:
 ```
 第 1/3 轮完成: [query/topic] "quantum error correction" → 获取 87 篇
-第 2/3 轮完成: [query/method] "surface codes" → 获取 43 篇
+第 2/3 轮完成: [method] "surface codes" → 获取 43 篇
 第 3/3 轮完成: [author] "John Preskill" → 获取 62 篇
 全部轮次完成，共获取 192 篇原始结果，正在去重合并...
 ```
@@ -252,7 +252,7 @@ Summarize the session:
 ```
 本次搜索完成（共 3 轮）：
   第 1 轮 [query/topic] "quantum error correction" → 87 篇
-  第 2 轮 [query/method] "surface codes"           → 43 篇
+  第 2 轮 [method] "surface codes"           → 43 篇
   第 3 轮 [author] "John Preskill"                 → 62 篇
   ────────────────────────────────
   原始总计: 192 篇

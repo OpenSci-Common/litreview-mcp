@@ -115,7 +115,7 @@ When presenting extracted factors, **group by category** and briefly explain wha
 ━━━ 主检索因子（Search Subjects）━━━
   1. [query/topic]  "large language model reasoning"
      → 搜索标题和摘要中包含此关键词的论文
-  2. [query/method] "chain-of-thought prompting"
+  2. [method] "chain-of-thought prompting"
      → 搜索标题和摘要中包含此方法的论文
 
 ━━━ 过滤因子（Filters）━━━
@@ -297,7 +297,7 @@ Display format:
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 主检索因子（Search Subjects）:
   1. ✅ [query/topic]  "RAG optimization"           (sf_a1b2c3d)
-  2. ✅ [query/method] "dense passage retrieval"     (sf_e4f5g6h)
+  2. ✅ [method] "dense passage retrieval"     (sf_e4f5g6h)
   3. ❌ [author]       "Patrick Lewis"               (sf_i7j8k9l)  ← 已停用
 
 过滤因子（Filters）:
@@ -336,7 +336,7 @@ lr_factor_add(path="<project_path>", type="query", value="prompt engineering", q
 ```
 
 After adding, confirm:
-> "已添加 [query/method] 'prompt engineering'。当前共有 N 个活跃主检索因子、M 个过滤因子。"
+> "已添加 [method] 'prompt engineering'。当前共有 N 个活跃主检索因子、M 个过滤因子。"
 
 **Warning if too many primary query factors are active:**
 If the user has 3+ active query-type factors after adding, warn:

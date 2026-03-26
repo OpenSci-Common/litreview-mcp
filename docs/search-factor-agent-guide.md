@@ -182,11 +182,22 @@ When composing a search from multiple active factors, follow these rules strictl
 ### Rule 1: At least one primary factor required
 If no primary factor (query/keyword/method/author/venue/seed_paper) is active, DO NOT execute a search. Ask the user to add or activate a search subject.
 
-### Rule 2: Multiple primary factors → one per search round, then merge
-**NEVER combine multiple primary factors into a single API query.** Each primary factor gets its own dedicated search round. Results from all rounds are merged and deduplicated.
-- Two active query factors: run round 1 with query A, round 2 with query B, merge results.
-- query + author: run round 1 with query, round 2 with author, merge results.
-- Two authors: run round 1 with author A, round 2 with author B, merge results.
+### Rule 2: Multiple primary factors → one keyword-type per round, then merge
+
+Primary factors fall into two sub-categories with different combination rules:
+
+**Keyword-type primaries** (`query`, `keyword`, `method`): NEVER combine multiple keyword-type factors into a single API query — combining keywords narrows results to near-zero. Each keyword-type factor gets its own search round.
+
+**Axis-type primaries** (`author`, `venue`): These naturally narrow results and CAN co-exist with a keyword-type factor in the same round as additional API parameters. They act as intersection filters (e.g., "papers about X by author Y at venue Z").
+
+**`seed_paper`**: Always runs in its own round via citation/recommendation APIs (Rule 6).
+
+Combination examples:
+- Two query factors → round 1 with query A, round 2 with query B, merge results.
+- query + author → single round: `search(query="X", author="Y")` — this is an intersection, not separate rounds.
+- query + author + venue → single round: `search(query="X", author="Y", venue="Z")`.
+- Two authors (no query) → round 1 with author A, round 2 with author B, merge results.
+- query A + query B + author → round 1: `search(query="A", author="Y")`, round 2: `search(query="B", author="Y")`, merge.
 - All filter factors apply to every round.
 
 ### Rule 3: All filters → AND
@@ -272,7 +283,7 @@ Active search factors:
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 Search subjects:
   1. [query/topic] "RAG optimization"
-  2. [query/method] "dense passage retrieval"
+  2. [method] "dense passage retrieval"
 
 Filters:
   3. [field] Computer Science
