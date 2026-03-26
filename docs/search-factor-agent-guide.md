@@ -82,7 +82,7 @@
 - **Value format**: Academic discipline name (e.g., "Computer Science", "Medicine")
 - **API translation**:
   - S2: `fieldsOfStudy={value}` — flat list. Known values: Computer Science, Medicine, Physics, Mathematics, Biology, Chemistry, Engineering, Economics, Business, Political Science, Psychology, Sociology, Geography, History, Art, Philosophy, Environmental Science, Materials Science, Geology, Agricultural and Food Sciences, Education, Law, Linguistics
-  - OA: `filter=topics.id:{topic_id}` — 3-level hierarchy. Must resolve via `/topics?search={value}` first.
+  - OA: `primary_topic_display_name={value}` — the MCP tool handles topic resolution internally.
 - **Multiple fields**: OR logic. `fieldsOfStudy=Computer Science,Linguistics` returns papers in either field.
 - **User explanation template**: "This restricts results to papers classified under this academic discipline. Useful when a keyword has different meanings in different fields."
 
@@ -91,7 +91,7 @@
 - **Value format**: Publication type identifier
 - **API translation**:
   - S2: `publicationTypes={s2_type}`. Values: JournalArticle, Conference, Review, Book, Dataset, ClinicalTrial, CaseReport, MetaAnalysis, Study, Editorial, LettersAndComments
-  - OA: `filter=type:{oa_type}`. Values: article, book, book-chapter, dataset, dissertation, editorial, erratum, letter, paratext, peer-review, preprint, report, standard, supplementary-materials
+  - OA: `type={oa_type}`. Values: article, book, book-chapter, dataset, dissertation, editorial, erratum, letter, paratext, peer-review, preprint, report, standard, supplementary-materials
 - **Cross-API mapping table** (agent must translate):
 
 | User-facing label | S2 value | OA value |
@@ -114,7 +114,7 @@
 - **Value format**: String in format "YYYY-YYYY", "YYYY-" (open-ended), or "YYYY" (single year)
 - **API translation**:
   - S2: `year={value}` — accepts "2020-2024", "2023-", "2024"
-  - OA: `filter=publication_year:{value}` — accepts "2020-2024", ">2022", "2024"
+  - OA: `publication_year={value}` — accepts "2020-2024", ">2022", "2024"
 - **Parsing rules**: Agent must parse user natural language into format:
   - "papers from the last 3 years" → compute current_year-3 to current_year → "2023-2026"
   - "recent papers" → default to "last 3 years" and confirm with user
@@ -139,7 +139,7 @@
 - **Value format**: Boolean (true/false)
 - **API translation**:
   - S2: `openAccessPdf` parameter (boolean)
-  - OA: `filter=is_oa:true`
+  - OA: `is_oa=true`
 - **User explanation template**: "When enabled, only papers with freely available full-text PDFs will be returned. Useful when you need to download and analyze the full paper."
 
 #### citation_min
@@ -147,7 +147,7 @@
 - **Value format**: Integer (minimum citation count)
 - **API translation**:
   - S2: `minCitationCount={value}`
-  - OA: `filter=cited_by_count:>N` where N = user's minimum value minus 1 (OA uses `>` not `>=`, so subtract 1 from the user's input)
+  - OA: `cited_by_count=">N"` where N = user's minimum value minus 1 (OA uses `>` not `>=`, so subtract 1 from the user's input)
 - **Side effect warning** (MUST display when value > 0):
   > "Note: minimum citation count filtering will exclude recently published papers that haven't had time to accumulate citations. Consider running a separate search without this filter to catch important new work."
 - **User explanation template**: "This sets a minimum number of times a paper has been cited by other papers. Higher values return more established/influential works, but will miss recent publications."
@@ -169,7 +169,7 @@
 - **Value format**: ISO 639-1 language code (e.g., "en", "zh", "de", "fr")
 - **API translation**:
   - S2: NOT SUPPORTED
-  - OA: `filter=language:{value}`
+  - OA: `language={value}`
 - **Warning message to user**: Same pattern as institution.
 - **User explanation template**: "This filters by the language of the paper. Currently the system focuses on English literature, but this allows filtering for other languages when needed. Note: only supported by OpenAlex."
 
@@ -287,14 +287,16 @@ Active search factors:
     2. [method] "dense passage retrieval"
   轴类（附加到每轮关键词搜索中）:
     3. [author] "Patrick Lewis"
+  种子论文类（独立轮次，使用引文/推荐 API）:
+    4. [seed_paper] "Attention Is All You Need"
 
 过滤因子（应用于所有搜索轮次）:
-  4. [field] Computer Science
-  5. [year_range] 2022-2026
-  6. [open_access] true
+  5. [field] Computer Science
+  6. [year_range] 2022-2026
+  7. [open_access] true
 
 停用（保留但不参与搜索）:
-  7. [citation_min] 50
+  8. [citation_min] 50
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 ```
 
