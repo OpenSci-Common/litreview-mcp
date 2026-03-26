@@ -81,10 +81,14 @@ Factors are divided into two categories:
 
 | Type         | Description                          | Example                          |
 |--------------|--------------------------------------|----------------------------------|
-| `query`      | Core keyword or concept              | "transformer attention mechanism"|
+| `query`      | Core keyword or concept (sub_type: topic/method/concept) | "transformer attention mechanism"|
+| `keyword`    | Supplementary keyword (appended to query) | "few-shot learning"          |
+| `method`     | Specific technique (appended to query) | "retrieval-augmented generation"|
 | `author`     | Target researcher                    | "Yoshua Bengio"                  |
 | `venue`      | Journal or conference                | "NeurIPS", "Nature"              |
 | `seed_paper` | Known paper for citation tracing     | DOI or title of a paper          |
+
+> Note: `query`, `keyword`, and `method` are all keyword-search types — they map to the `query` parameter in search APIs. The distinction is semantic (helps organize your factors). Each still gets its own search round.
 
 **Filter factors** (must combine with at least one primary — narrows results):
 
@@ -417,10 +421,10 @@ After promotion:
 
 Triggered by: "因子类型有哪些", "explain factor types", "有什么过滤条件", "能过滤什么"
 
-Present the full factor category table from Step 3, then offer to show examples:
+Present the full factor category table from Step 3 (Factor Categories at a Glance), then offer to show examples:
 > "需要看具体的使用示例吗？"
 
-If yes, show the example scenarios from Step 4.
+If yes, show the example scenarios from Step 4 (Explain Factor Types on Demand).
 
 ---
 

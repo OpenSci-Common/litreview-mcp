@@ -38,13 +38,18 @@ Determine the user's project directory at the start (e.g. via `pwd`) and use it 
 Call `lr_factor_list` to retrieve all active search factors:
 
 ```
-lr_factor_list(path="<project_path>", active_only=true)
+lr_factor_list(path="<project_path>", active_only=True)
 ```
 
 If no active factors are found, tell the user:
 > "尚未配置检索因子。请先运行「初始化litreview」或手动添加因子。"
 
-**Present all active factors as a selectable list**, grouped by primary vs filter:
+**Present all active factors as a selectable list**, grouped by primary vs filter.
+
+Primary factor types are: `query`, `keyword`, `method`, `author`, `venue`, `seed_paper`.
+Filter factor types are: `field`, `year_range`, `pub_type`, `open_access`, `citation_min`, `institution`, `language`, `funder`.
+
+Display format:
 
 ```
 当前活跃的检索因子：
@@ -52,14 +57,16 @@ If no active factors are found, tell the user:
 主检索因子（每个将单独搜索）:
   [1] [query/topic]  "quantum error correction"
   [2] [query/method] "surface codes"
-  [3] [author]       "John Preskill"
+  [3] [keyword]      "topological qubits"
+  [4] [author]       "John Preskill"
 
 过滤因子（应用于所有搜索轮次）:
-  [4] [field]        Physics
-  [5] [year_range]   2022-2026
+  [5] [field]        Physics
+  [6] [year_range]   2022-2026
+  [7] [pub_type]     Review
 
 请选择本次搜索要使用的因子：
-  • 输入编号，如 1,2,4,5
+  • 输入编号，如 1,2,5,6
   • 输入「全部」使用所有因子（主因子将逐个搜索）
   • 输入「只用 1」只搜索第一个主因子
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -69,9 +76,17 @@ Wait for user selection before proceeding.
 
 ---
 
-## Step 2: Build Search Plan Based on Selection
+## Step 2: Compose Query and Build Search Plan
 
-Based on user's selection, build the search plan. **CRITICAL RULE: NEVER combine multiple primary query factors into one search query.** Each primary factor gets its own search round.
+First, call `lr_factor_compose_query` to get the deterministic factor-to-query mapping:
+
+```
+lr_factor_compose_query(path="<project_path>")
+```
+
+This returns `primary_queries`, `filters`, `factor_ids`, and `factor_roles`. Use this output to validate the factor types and filter parameters. Refer to `references/query-mapping.md` for the exact API parameter mapping of each filter type.
+
+Then, based on the user's selection from Step 1, build the search plan. **CRITICAL RULE: NEVER combine multiple primary query factors into one search query.** Each primary factor gets its own search round.
 
 ### Case A: User selects specific factors
 
@@ -138,8 +153,14 @@ search_openalex(primary_location_source_display_name="<venue_name>", <filter_par
 ```
 
 ### Seed-paper primary factor:
+
+Ask user which direction to trace (if not already specified):
+- `forward` — who cites this paper?
+- `backward` — what does this paper cite?
+- `both` — both directions (default if user has no preference)
+
 ```
-snowball_search(paper_id=<seed_id>, direction="both", max_results_per_direction=30)
+snowball_search(paper_id=<seed_id>, direction="<forward|backward|both>", max_results_per_direction=30)
 ```
 
 **After each round**, briefly report progress:
