@@ -22,7 +22,18 @@ Determine the user's project directory at the start (e.g. via `pwd`) and use it 
 
 ---
 
-## Step 1: Load Active Factors
+## IMPORTANT: Fewer Query Keywords = Better Results
+
+**Do NOT combine too many query-type factors into a single search.** The more keywords in a query, the stricter the intersection against title + abstract, and the fewer results returned.
+
+- **1–2 query factors per search** is ideal.
+- If 3+ query factors are active, warn the user and suggest deactivating some or running separate searches.
+- Use filter factors (year_range, field, venue, etc.) to narrow results — these don't reduce keyword matching.
+- If a search returns 0 results, first try reducing active query factors.
+
+---
+
+## Step 1: Load and Present All Factors for Selection
 
 Call `lr_factor_list` to retrieve all active search factors:
 
@@ -33,69 +44,133 @@ lr_factor_list(path="<project_path>", active_only=true)
 If no active factors are found, tell the user:
 > "尚未配置检索因子。请先运行「初始化litreview」或手动添加因子。"
 
----
-
-## Step 2: Compose Query Parameters
-
-Call `lr_factor_compose_query` to generate query parameters from active factors:
+**Present all active factors as a selectable list**, grouped by primary vs filter:
 
 ```
-lr_factor_compose_query(path="<project_path>")
+当前活跃的检索因子：
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+主检索因子（每个将单独搜索）:
+  [1] [query/topic]  "quantum error correction"
+  [2] [query/method] "surface codes"
+  [3] [author]       "John Preskill"
+
+过滤因子（应用于所有搜索轮次）:
+  [4] [field]        Physics
+  [5] [year_range]   2022-2026
+
+请选择本次搜索要使用的因子：
+  • 输入编号，如 1,2,4,5
+  • 输入「全部」使用所有因子（主因子将逐个搜索）
+  • 输入「只用 1」只搜索第一个主因子
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 ```
 
-Returns: primary_queries, filters, combined_query, factor_ids, factor_roles.
-
----
-
-## Step 3: Show Query Plan for Confirmation
-
-**Before executing any searches**, present the query plan transparently:
-
-```
-即将执行以下检索计划：
-
-主查询词: "large language model reasoning"
-过滤条件:
-  - 年份: 2022-2024
-  - 领域: artificial intelligence
-数据源: Semantic Scholar, OpenAlex
-每个来源返回数量: 50 篇
-
-是否确认执行？（可调整参数、数据源或返回数量）
-```
-
-Wait for user confirmation. Allow adjustments.
+Wait for user selection before proceeding.
 
 ---
 
-## Step 4: Execute Searches
+## Step 2: Build Search Plan Based on Selection
 
-Based on confirmed plan, call paper-search MCP tools:
+Based on user's selection, build the search plan. **CRITICAL RULE: NEVER combine multiple primary query factors into one search query.** Each primary factor gets its own search round.
+
+### Case A: User selects specific factors
+
+Separate selected factors into primary and filter groups. Each selected primary factor becomes one search round, with all selected filters applied to every round.
+
+### Case B: User selects "全部" (all)
+
+All primary factors are included, each as a separate round. All filter factors apply to every round.
+
+### Search Round Plan
+
+For N selected primary factors, create N search rounds:
 
 ```
-search_semantic(query="<combined_query>", max_results=50)
-search_openalex(query="<combined_query>", max_results=50)
+检索计划（共 N 轮）：
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+第 1 轮: [query/topic] "quantum error correction"
+  过滤: field=Physics, year=2022-2026
+  数据源: Semantic Scholar + OpenAlex
+  每源: 50 篇
+
+第 2 轮: [query/method] "surface codes"
+  过滤: field=Physics, year=2022-2026
+  数据源: Semantic Scholar + OpenAlex
+  每源: 50 篇
+
+第 3 轮: [author] "John Preskill"
+  过滤: field=Physics, year=2022-2026
+  数据源: Semantic Scholar + OpenAlex
+  每源: 50 篇
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+预计总检索: 最多 300 篇（去重后通常更少）
+结果将自动去重合并。
+
+确认执行？（可调整轮次、数据源或返回数量）
 ```
 
-**If seed_paper factors exist:**
+Wait for user confirmation. Allow adjustments (remove rounds, change limits, etc.).
+
+---
+
+## Step 3: Execute Searches Round by Round
+
+Execute each search round sequentially. **Each round uses exactly ONE primary factor plus all selected filters.**
+
+For each round:
+
+### Query-type primary factor (query, keyword, method):
+```
+search_semantic(query="<single_primary_value>", <filter_params>, max_results=50)
+search_openalex(query="<single_primary_value>", <filter_params>, max_results=50)
+```
+
+### Author-type primary factor:
+```
+search_semantic(author="<author_name>", <filter_params>, max_results=50)
+search_openalex(authorships_author_display_name="<author_name>", <filter_params>, max_results=50)
+```
+
+### Venue-type primary factor:
+```
+search_semantic(venue="<venue_name>", <filter_params>, max_results=50)
+search_openalex(primary_location_source_display_name="<venue_name>", <filter_params>, max_results=50)
+```
+
+### Seed-paper primary factor:
 ```
 snowball_search(paper_id=<seed_id>, direction="both", max_results_per_direction=30)
 ```
 
-The Skill decides which sources to use based on user's research domain and preferences. Refer to `references/query-mapping.md` for factor-to-API mapping.
+**After each round**, briefly report progress:
+```
+第 1/3 轮完成: [query/topic] "quantum error correction" → 获取 87 篇
+第 2/3 轮完成: [query/method] "surface codes" → 获取 43 篇
+第 3/3 轮完成: [author] "John Preskill" → 获取 62 篇
+全部轮次完成，共获取 192 篇原始结果，正在去重合并...
+```
+
+Collect all raw results from all rounds, then proceed to ingestion.
+
+Refer to `references/query-mapping.md` for factor-to-API parameter mapping.
 
 ---
 
-## Step 5: Ingest Results (Dedup + Score + Persist)
+## Step 4: Ingest Results (Dedup + Score + Persist)
 
-**This is the critical step.** Call `lr_search_ingest` to persist ALL search results:
+**This is the critical step.** After all rounds complete, call `lr_search_ingest` with the **combined raw results from ALL rounds**:
 
 ```
 lr_search_ingest(
   path="<project_path>",
-  raw_results=<combined_results_from_all_sources>,
-  input_factors=<factor_ids>,
-  api_queries=[{"api": "semantic_scholar", "results_count": 50}, ...],
+  raw_results=<combined_results_from_all_rounds>,
+  input_factors=<all_selected_factor_ids>,
+  api_queries=[
+    {"api": "semantic_scholar", "query": "quantum error correction", "results_count": 50},
+    {"api": "openalex", "query": "quantum error correction", "results_count": 50},
+    {"api": "semantic_scholar", "query": "surface codes", "results_count": 43},
+    ...
+  ],
 )
 ```
 
@@ -111,7 +186,7 @@ Returns top 20 scored papers for immediate display, plus statistics.
 
 ---
 
-## Step 6: Show Ranked Results
+## Step 5: Show Ranked Results
 
 Present results from the `lr_search_ingest` response:
 
@@ -131,7 +206,7 @@ Top 20 候选论文（按评分排序）：
 
 ---
 
-## Step 7: User Decisions
+## Step 6: User Decisions
 
 User can now browse and decide:
 
@@ -148,18 +223,22 @@ Continue until user signals done.
 
 ---
 
-## Step 8: Summary
+## Step 7: Summary
 
 Summarize the session:
 
 ```
-本次搜索完成：
-  检索: 143 篇（Semantic Scholar 50 + OpenAlex 50 + Snowball 43）
-  去重后: 98 篇
-  新增候选: 93 篇
-  已接受入库: 12 篇
-  已排除: 3 篇
-  待审核: 78 篇候选
+本次搜索完成（共 3 轮）：
+  第 1 轮 [query/topic] "quantum error correction" → 87 篇
+  第 2 轮 [query/method] "surface codes"           → 43 篇
+  第 3 轮 [author] "John Preskill"                 → 62 篇
+  ────────────────────────────────
+  原始总计: 192 篇
+  去重后:   134 篇
+  新增候选: 128 篇
+  已接受入库: 15 篇
+  已排除: 2 篇
+  待审核: 111 篇候选
 
 搜索会话已保存，可随时继续审核候选论文。
 ```
