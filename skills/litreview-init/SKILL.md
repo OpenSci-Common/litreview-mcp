@@ -11,6 +11,8 @@ description: >
 
 # litreview-init: Initialize Workspace & Manage Search Factors
 
+See `docs/search-factor-agent-guide.md` for the full factor type registry, query composition rules, and error handling.
+
 This skill covers two workflows:
 1. **Initialize** — create a new workspace and extract initial search factors from the user's research topic
 2. **Factor Management** — CRUD operations on search factors (add, list, edit, activate/deactivate, delete)
@@ -369,6 +371,8 @@ lr_factor_remove(path="<project_path>", factor_id="sf_xxx")
 > "确认删除 [type] 'value'？如果只是暂时不用，可以选择停用而非删除。"
 
 After deletion:
+1. If the factor had `provenance="promoted_from_content"`, reset the corresponding content factors' `promoted` field back to `false` so they can be re-promoted later.
+2. Historical search sessions referencing this factor are NOT modified (they store factor snapshots).
 > "已删除因子 [type] 'value'。"
 
 ---

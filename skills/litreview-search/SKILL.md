@@ -11,6 +11,7 @@ description: >
 This skill executes a structured literature search, persists all results as candidates, and lets the user browse/sort/accept into the library.
 
 See `references/query-mapping.md` for factor-to-API parameter mapping details.
+See also `docs/search-factor-agent-guide.md` for the full factor type registry, query composition rules, and error handling.
 
 ---
 

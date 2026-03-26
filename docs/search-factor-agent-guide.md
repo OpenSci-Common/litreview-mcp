@@ -20,6 +20,22 @@
 - **Multiple query factors**: Combine with OR logic. Present results from all queries, rank by AI relevance score that rewards papers matching multiple queries.
 - **User explanation template**: "This keyword will be searched against paper titles and abstracts. Papers containing this term (or closely related terms) will be returned."
 
+#### keyword
+- **Role**: primary
+- **Value format**: Free-text string, typically 1-3 words
+- **API translation**: Same as `query` — maps to `query={value}` (S2) / `search={value}` (OA)
+- **Distinction from query**: Semantic only. Use `keyword` for supplementary terms that refine the search (e.g., "few-shot learning") vs. `query` for core topic concepts. APIs treat them identically.
+- **Search behavior**: Each keyword factor gets its own search round, just like query factors. Do NOT append keywords to a query factor's value.
+- **User explanation template**: "This supplementary keyword will be searched in paper titles and abstracts, in its own dedicated search round."
+
+#### method
+- **Role**: primary
+- **Value format**: Technique or methodology name (e.g., "retrieval-augmented generation", "contrastive learning")
+- **API translation**: Same as `query` — maps to `query={value}` (S2) / `search={value}` (OA)
+- **Distinction from query**: Semantic only. Use `method` for specific techniques/algorithms vs. `query` for broader topics. APIs treat them identically.
+- **Search behavior**: Each method factor gets its own search round. Do NOT append methods to a query factor's value.
+- **User explanation template**: "This will search for papers about this specific technique or methodology, in its own dedicated search round."
+
 #### author
 - **Role**: primary
 - **Value format**: Person name string (e.g., "Yoshua Bengio")
@@ -131,7 +147,7 @@
 - **Value format**: Integer (minimum citation count)
 - **API translation**:
   - S2: `minCitationCount={value}`
-  - OA: `filter=cited_by_count:>{value-1}` (OA uses > operator, so subtract 1)
+  - OA: `filter=cited_by_count:>N` where N = user's minimum value minus 1 (OA uses `>` not `>=`, so subtract 1 from the user's input)
 - **Side effect warning** (MUST display when value > 0):
   > "Note: minimum citation count filtering will exclude recently published papers that haven't had time to accumulate citations. Consider running a separate search without this filter to catch important new work."
 - **User explanation template**: "This sets a minimum number of times a paper has been cited by other papers. Higher values return more established/influential works, but will miss recent publications."
@@ -164,12 +180,14 @@
 When composing a search from multiple active factors, follow these rules strictly:
 
 ### Rule 1: At least one primary factor required
-If no primary factor (query/author/venue/seed_paper) is active, DO NOT execute a search. Ask the user to add or activate a search subject.
+If no primary factor (query/keyword/method/author/venue/seed_paper) is active, DO NOT execute a search. Ask the user to add or activate a search subject.
 
-### Rule 2: Multiple primary factors → OR
-Two active query factors: send separate API queries for each, merge and deduplicate results.
-query + author: search for papers by that author matching that keyword (intersection).
-Two authors: retrieve papers by either author, merge results.
+### Rule 2: Multiple primary factors → one per search round, then merge
+**NEVER combine multiple primary factors into a single API query.** Each primary factor gets its own dedicated search round. Results from all rounds are merged and deduplicated.
+- Two active query factors: run round 1 with query A, round 2 with query B, merge results.
+- query + author: run round 1 with query, round 2 with author, merge results.
+- Two authors: run round 1 with author A, round 2 with author B, merge results.
+- All filter factors apply to every round.
 
 ### Rule 3: All filters → AND
 All active filter factors apply simultaneously. A paper must satisfy ALL active filters to appear in results.
@@ -198,24 +216,23 @@ seed_paper does not use keyword search endpoints. Workflow:
 
 ## 3. User-Facing Confirmation Template
 
-Before executing any search, present the following to the user:
+Before executing any search, present the search plan to the user. Use the same language as the skill prompts (Chinese):
 
 ```
-Search plan:
+检索计划（共 N 轮）：
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-Search subjects:
-  • [type]: "[value]"               → [API parameter]
-  • [type]: "[value]"               → [API parameter]
+第 1 轮: [type] "[value]"            → [API parameter]
+第 2 轮: [type] "[value]"            → [API parameter]
 
-Filters:
-  • [type]: [value]                 → [API parameter]
-  • [type]: [value]                 → [API parameter]
-  • [type]: [value] ⚠ OpenAlex only → [API parameter]
+过滤条件（应用于所有轮次）:
+  • [type]: [value]                  → [API parameter]
+  • [type]: [value]                  → [API parameter]
+  • [type]: [value] ⚠ 仅 OpenAlex   → [API parameter]
 
-APIs to query: Semantic Scholar, OpenAlex
-Limitations: [filter X] will not apply to Semantic Scholar results.
+数据源: Semantic Scholar, OpenAlex
+限制: [filter X] 仅 OpenAlex 支持，Semantic Scholar 结果不受此过滤。
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-Proceed? (yes / edit / cancel)
+确认执行？（确认 / 调整 / 取消）
 ```
 
 ---
