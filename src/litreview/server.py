@@ -264,6 +264,113 @@ def lr_export_bibtex(path: str = ".", status: Optional[str] = "in_library") -> s
 
 
 # ---------------------------------------------------------------------------
+# Import (3 tools)
+# ---------------------------------------------------------------------------
+
+
+@mcp.tool()
+def lr_import_doi(path: str = ".", doi: str = "") -> dict:
+    """Import a single paper by DOI. Fetches metadata from CrossRef via paper-search MCP,
+    then stores as a candidate in the library.
+
+    NOTE: This tool only stores the paper. The Skill should first call
+    paper-search's get_crossref_paper_by_doi to fetch metadata, then pass
+    the result to lr_paper_add. This tool is a convenience wrapper that
+    creates a minimal record from just the DOI — the Skill should enrich it.
+    """
+    paper_data = {
+        "title": f"[Pending metadata] DOI: {doi}",
+        "year": 0,
+        "external_ids": {"doi": doi},
+        "authors": [],
+        "abstract": "",
+        "status": "candidate",
+        "source_apis": ["doi_import"],
+    }
+    return library.add_paper(base_path=path, paper_data=paper_data)
+
+
+@mcp.tool()
+def lr_import_dois(path: str = ".", dois: Optional[List[str]] = None) -> dict:
+    """Import multiple papers by DOI list. Creates minimal candidate records.
+
+    The Skill should then enrich each paper by calling paper-search's
+    get_crossref_paper_by_doi for full metadata.
+
+    Returns: {"added": int, "duplicates": int, "papers": [...]}
+    """
+    papers = []
+    for doi in (dois or []):
+        papers.append({
+            "title": f"[Pending metadata] DOI: {doi}",
+            "year": 0,
+            "external_ids": {"doi": doi},
+            "authors": [],
+            "abstract": "",
+            "status": "candidate",
+            "source_apis": ["doi_import"],
+        })
+    return library.add_papers_batch(base_path=path, papers=papers)
+
+
+@mcp.tool()
+def lr_import_bibtex(path: str = ".", bibtex_content: str = "") -> dict:
+    """Import papers from a BibTeX string. Parses entries and stores as candidates.
+
+    Pass the raw content of a .bib file. Each @article/@inproceedings/etc entry
+    is parsed and added to the library with status="candidate".
+
+    Returns: {"added": int, "duplicates": int, "papers": [...]}
+    """
+    import re
+
+    entries = re.split(r'(?=@\w+\{)', bibtex_content.strip())
+    papers = []
+
+    for entry in entries:
+        entry = entry.strip()
+        if not entry:
+            continue
+
+        def _extract(field: str) -> str:
+            m = re.search(rf'{field}\s*=\s*[\{{"](.*?)[\}}"]\s*[,\}}]', entry, re.DOTALL | re.IGNORECASE)
+            return m.group(1).strip() if m else ""
+
+        title = _extract("title")
+        if not title:
+            continue
+
+        author_raw = _extract("author")
+        authors = [a.strip() for a in author_raw.split(" and ")] if author_raw else []
+
+        year_str = _extract("year")
+        year = int(year_str) if year_str.isdigit() else 0
+
+        doi = _extract("doi")
+        abstract = _extract("abstract")
+        venue = _extract("journal") or _extract("booktitle")
+        url = _extract("url")
+
+        external_ids = {}
+        if doi:
+            external_ids["doi"] = doi
+
+        papers.append({
+            "title": title,
+            "year": year,
+            "external_ids": external_ids,
+            "authors": authors,
+            "abstract": abstract,
+            "venue": venue,
+            "url": url,
+            "status": "candidate",
+            "source_apis": ["bibtex_import"],
+        })
+
+    return library.add_papers_batch(base_path=path, papers=papers)
+
+
+# ---------------------------------------------------------------------------
 # Dedup (1 tool)
 # ---------------------------------------------------------------------------
 
