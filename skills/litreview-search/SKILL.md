@@ -166,10 +166,9 @@ snowball_search(paper_id=<seed_id>, direction="<forward|backward|both>", max_res
 
 **After each round**, briefly report progress:
 ```
-第 1/3 轮完成: [query/topic] "quantum error correction" → 获取 87 篇
-第 2/3 轮完成: [method] "surface codes" → 获取 43 篇
-第 3/3 轮完成: [author] "John Preskill" → 获取 62 篇
-全部轮次完成，共获取 192 篇原始结果，正在去重合并...
+第 1/2 轮完成: [query/topic] "quantum error correction" + author: "John Preskill" → 获取 87 篇
+第 2/2 轮完成: [method] "surface codes" + author: "John Preskill" → 获取 43 篇
+全部轮次完成，共获取 130 篇原始结果，正在去重合并...
 ```
 
 Collect all raw results from all rounds, then proceed to ingestion.
@@ -250,17 +249,16 @@ Continue until user signals done.
 Summarize the session:
 
 ```
-本次搜索完成（共 3 轮）：
-  第 1 轮 [query/topic] "quantum error correction" → 87 篇
-  第 2 轮 [method] "surface codes"           → 43 篇
-  第 3 轮 [author] "John Preskill"                 → 62 篇
+本次搜索完成（共 2 轮）：
+  第 1 轮 [query/topic] "quantum error correction" + author: "John Preskill" → 87 篇
+  第 2 轮 [method] "surface codes" + author: "John Preskill"                 → 43 篇
   ────────────────────────────────
-  原始总计: 192 篇
-  去重后:   134 篇
-  新增候选: 128 篇
+  原始总计: 130 篇
+  去重后:   98 篇
+  新增候选: 93 篇
   已接受入库: 15 篇
   已排除: 2 篇
-  待审核: 111 篇候选
+  待审核: 76 篇候选
 
 搜索会话已保存，可随时继续审核候选论文。
 ```

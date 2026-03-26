@@ -10,7 +10,7 @@
 ### 1.1 Primary factors (can independently trigger a search)
 
 #### query
-- **Role**: primary
+- **Role**: primary (keyword-type — each gets its own search round; see Rule 2)
 - **Sub-types**: topic | concept (stored in `sub_type` field; APIs treat all identically). Note: `method` is a separate first-class primary factor type, not a sub_type of query.
 - **Value format**: Free-text string, typically 1-5 words
 - **API translation**:
@@ -21,7 +21,7 @@
 - **User explanation template**: "This keyword will be searched against paper titles and abstracts. Papers containing this term (or closely related terms) will be returned."
 
 #### keyword
-- **Role**: primary
+- **Role**: primary (keyword-type — each gets its own search round; see Rule 2)
 - **Value format**: Free-text string, typically 1-3 words
 - **API translation**: Same as `query` — maps to `query={value}` (S2) / `search={value}` (OA)
 - **Distinction from query**: Semantic only. Use `keyword` for supplementary terms that refine the search (e.g., "few-shot learning") vs. `query` for core topic concepts. APIs treat them identically.
@@ -29,7 +29,7 @@
 - **User explanation template**: "This supplementary keyword will be searched in paper titles and abstracts, in its own dedicated search round."
 
 #### method
-- **Role**: primary
+- **Role**: primary (keyword-type — each gets its own search round; see Rule 2)
 - **Value format**: Technique or methodology name (e.g., "retrieval-augmented generation", "contrastive learning")
 - **API translation**: Same as `query` — maps to `query={value}` (S2) / `search={value}` (OA)
 - **Distinction from query**: Semantic only. Use `method` for specific techniques/algorithms vs. `query` for broader topics. APIs treat them identically.
@@ -37,7 +37,7 @@
 - **User explanation template**: "This will search for papers about this specific technique or methodology, in its own dedicated search round."
 
 #### author
-- **Role**: primary
+- **Role**: primary (axis-type — can co-attach to keyword rounds as intersection param; see Rule 2)
 - **Value format**: Person name string (e.g., "Yoshua Bengio")
 - **Requires ID resolution**: YES — must resolve name to API entity ID before searching.
 - **API translation** (two-step):
@@ -49,7 +49,7 @@
 - **User explanation template**: "This will find all papers authored by this researcher. The system first identifies the researcher in academic databases, then retrieves their publication list."
 
 #### venue
-- **Role**: primary
+- **Role**: primary (axis-type — can co-attach to keyword rounds as intersection param; see Rule 2)
 - **Value format**: Journal or conference name (e.g., "NeurIPS", "Nature Machine Intelligence")
 - **Requires ID resolution**: Only for OpenAlex (S2 accepts venue name directly).
 - **API translation**:
