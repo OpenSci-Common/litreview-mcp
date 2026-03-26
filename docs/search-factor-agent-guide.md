@@ -129,7 +129,7 @@
 - **Requires ID resolution**: Yes, via OA `/institutions?search={value}`.
 - **API translation**:
   - S2: NOT SUPPORTED — do not include in S2 query. Agent MUST inform user.
-  - OA: `filter=authorships.institutions.id:{oa_institution_id}`
+  - OA: `authorships_institutions_id={oa_institution_id}`
 - **Warning message to user** (MUST display when this filter is active):
   > "Note: institution filtering is only supported by OpenAlex. Semantic Scholar results will not be filtered by institution."
 - **User explanation template**: "This filters for papers where at least one author is affiliated with this institution. Note: this only works with one of our two data sources (OpenAlex)."
@@ -159,7 +159,7 @@
 - **Requires ID resolution**: Yes, via OA `/funders?search={value}`.
 - **API translation**:
   - S2: NOT SUPPORTED
-  - OA: `filter=awards.funder:{oa_funder_id}`
+  - OA: `awards_funder={oa_funder_id}`
 - **Warning message to user**: Same pattern as institution — inform user this only works on OpenAlex.
 - **User explanation template**: "This filters for papers funded by a specific agency. Useful for tracking research output from particular funding programs. Note: only supported by OpenAlex."
 
@@ -281,17 +281,19 @@ Present current active factors grouped by role:
 ```
 Active search factors:
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-Search subjects:
-  1. [query/topic] "RAG optimization"
-  2. [method] "dense passage retrieval"
+主检索因子:
+  关键词类（每个单独搜索一轮）:
+    1. [query/topic] "RAG optimization"
+    2. [method] "dense passage retrieval"
+  轴类（附加到每轮关键词搜索中）:
+    3. [author] "Patrick Lewis"
 
-Filters:
-  3. [field] Computer Science
-  4. [year_range] 2022-2026
-  5. [open_access] true
+过滤因子（应用于所有搜索轮次）:
+  4. [field] Computer Science
+  5. [year_range] 2022-2026
+  6. [open_access] true
 
-Inactive (stored but not in current search):
-  6. [author] "Patrick Lewis"
+停用（保留但不参与搜索）:
   7. [citation_min] 50
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 ```
