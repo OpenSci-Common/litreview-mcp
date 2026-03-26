@@ -66,9 +66,9 @@ Display format:
     [5] [seed_paper]   "Attention Is All You Need"
 
 过滤因子（应用于所有搜索轮次）:
-  [5] [field]        Physics
-  [6] [year_range]   2022-2026
-  [7] [pub_type]     Review
+  [6] [field]        Physics
+  [7] [year_range]   2022-2026
+  [8] [pub_type]     Review
 
 请选择本次搜索要使用的因子：
   • 输入编号，如 1,2,5,6
