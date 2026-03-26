@@ -40,71 +40,93 @@ If unclear, present the three options and ask the user which approach they prefe
 
 ## Sub-Workflow A: Semantic Expansion
 
-Analyze recent library papers to extract new concepts and propose additional search factors.
+Analyze library papers' abstracts to extract new concepts and propose additional search factors. **The user chooses which papers to use as "seeds" — never auto-select without confirmation.**
 
-### A1: Retrieve Recent Papers
-
-```
-lr_paper_list(
-  status="included",
-  sort_by="added_date",
-  limit=10
-)
-```
-
-If fewer than 3 papers are in the library, suggest adding more papers before running semantic expansion.
-
-### A2: Fetch Abstracts
-
-For each paper, retrieve its full metadata including abstract:
+### A1: Retrieve Library Papers
 
 ```
-lr_paper_detail(paper_id=<lr_id>)
+lr_paper_list(path="<project_path>", status="in_library", sort_by="citation_count")
 ```
 
-Collect all abstracts into a batch for analysis.
+If fewer than 3 papers in library, suggest adding more first.
 
-### A3: Analyze Abstracts for New Concepts
+### A2: Present Seed Candidates with Expansion Potential
 
-Use the prompt template from `references/expansion-prompts.md` to analyze the abstracts.
+Evaluate each paper's "seed value" based on:
+- **Abstract richness**: length and information density (longer, method-heavy abstracts yield more concepts)
+- **Citation impact**: highly cited papers tend to define key terminology
+- **Novelty**: papers with concepts NOT already in the factor list are more valuable
 
-Key instructions for analysis:
-- Identify recurring technical terms and methodologies not yet in the factor list
+Present candidates with your recommendation and reasoning:
+
+```
+文献库共 15 篇论文。以下是语义扩展种子候选：
+
+推荐种子（摘要信息量大，包含尚未覆盖的概念）：
+  #1  RAG for Knowledge Tasks (Lewis 2020)
+      摘要 312 词 | 引用 3500 | 含方法论述语: dense retrieval, knowledge grounding
+  #4  Chain-of-Thought Prompting (Wei 2022)
+      摘要 280 词 | 引用 3241 | 含新概念: few-shot reasoning, step-by-step
+  #7  Constitutional AI (Bai 2022)
+      摘要 256 词 | 引用 890 | 含新方向: AI alignment, RLHF critique
+
+扩展价值较低（摘要过短或概念已被现有因子覆盖）：
+  #2  Attention Is All You Need — 摘要仅 80 词
+  #5  BERT — 概念已在因子库中（transformer, pre-training）
+  ...
+
+请选择用作种子的论文（输入编号，如 "1,4,7" 或 "全部推荐"）：
+```
+
+### A3: User Confirms Seeds
+
+Wait for the user to confirm or adjust the seed selection. Proceed ONLY after confirmation.
+
+### A4: Analyze Seed Abstracts for New Concepts
+
+Retrieve full abstracts for selected seeds:
+```
+lr_paper_detail(path="<project_path>", paper_id=<id>)
+```
+
+Use the prompt template from `references/expansion-prompts.md` to analyze.
+
+Also retrieve current factors to avoid duplicates:
+```
+lr_factor_list(path="<project_path>", active_only=true)
+```
+
+Key analysis goals:
+- Identify recurring technical terms and methodologies NOT yet in factor list
 - Find related sub-fields or adjacent research areas
 - Note frequently co-cited techniques or datasets
-- Detect emerging terminologies that may represent the field's frontier
+- Detect emerging terminology representing the field's frontier
 
-Retrieve current active factors to avoid proposing duplicates:
-```
-lr_factor_list(active_only=true)
-```
+### A5: Propose New Factors with Rationale
 
-### A4: Propose New Factors
-
-Present proposed new factors clearly, explaining the rationale for each:
+Present proposed factors, linking each back to the seed paper(s) that inspired it:
 
 ```
-基于最近 10 篇论文的摘要分析，建议添加以下新检索因子：
+基于 3 篇种子论文的摘要分析，建议添加以下新检索因子：
 
-1. [method] "speculative decoding" — 出现在 4 篇论文中，是近期推理加速的核心技术
-2. [method] "flash attention" — 3 篇论文提及，与 transformer 效率密切相关
-3. [query] "long context window" — 检测到上下文长度相关的新研究方向
-4. [venue] "COLM" — 2 篇论文发表于此，是新兴 LLM 专题会议
-5. [keyword] "MoE mixture of experts" — 架构创新的高频词汇
+1. [method] "dense passage retrieval" — 来自 #1 RAG 论文，核心检索技术
+2. [method] "knowledge grounding" — 来自 #1，将检索结果融入生成的方法
+3. [concept] "few-shot reasoning" — 来自 #4 CoT 论文，新兴推理范式
+4. [concept] "AI alignment" — 来自 #7 Constitutional AI，安全研究方向
+5. [keyword] "RLHF critique" — 来自 #7，具体对齐技术
 
 请选择要添加的因子（输入编号，或「全部添加」，或「跳过」）：
 ```
 
-### A5: Register Selected Factors
+### A6: Register Selected Factors
 
-For each factor the user selects, call `lr_factor_add`:
-
+For each selected factor:
 ```
-lr_factor_add(type="method", value="speculative decoding", weight=0.8)
+lr_factor_add(path="<project_path>", type="method", value="dense passage retrieval", query_role="primary", provenance="ai_suggested")
 ```
 
-After registration, ask:
-> "是否立即用新因子重新检索？（说「开始搜索」）"
+After registration:
+> "已添加 4 个新检索因子。是否立即用新因子重新检索？（说「开始搜索」）"
 
 ---
 
