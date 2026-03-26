@@ -1,0 +1,284 @@
+# Search Factor Reference — Agent Technical Guide
+
+> **Purpose**: Technical reference for AI agents executing `search` and `search-factor-management` skills. This document defines how to interpret, validate, combine, and translate search factors into API queries.
+> **When to read**: Before composing any search query or managing user's search factors.
+
+---
+
+## 1. Factor Type Registry
+
+### 1.1 Primary factors (can independently trigger a search)
+
+#### query
+- **Role**: primary
+- **Sub-types**: topic | method | concept (stored in `sub_type` field; APIs treat all identically)
+- **Value format**: Free-text string, typically 1-5 words
+- **API translation**:
+  - S2: `query={value}` — matches title + abstract
+  - OA: `search={value}` — matches title + abstract + fulltext
+- **Validation**: Non-empty string. Warn user if >8 words (overly specific queries return few results).
+- **Multiple query factors**: Combine with OR logic. Present results from all queries, rank by AI relevance score that rewards papers matching multiple queries.
+- **User explanation template**: "This keyword will be searched against paper titles and abstracts. Papers containing this term (or closely related terms) will be returned."
+
+#### author
+- **Role**: primary
+- **Value format**: Person name string (e.g., "Yoshua Bengio")
+- **Requires ID resolution**: YES — must resolve name to API entity ID before searching.
+- **API translation** (two-step):
+  - S2: Step 1: `GET /author/search?query={value}` → extract `authorId` from top result. Step 2: `GET /author/{authorId}/papers?fields=...`
+  - OA: Step 1: `GET /authors?search={value}` → extract `id` from top result. Step 2: `GET /works?filter=authorships.author.id:{id}`
+- **ID caching**: After first resolution, store IDs in factor's `api_ids` field. Skip resolution on subsequent searches.
+- **Disambiguation**: If name resolution returns multiple candidates, present top 3-5 to user with affiliations and paper counts. Let user select the correct person.
+- **Validation**: Non-empty string. If `api_ids` is empty, must resolve before searching.
+- **User explanation template**: "This will find all papers authored by this researcher. The system first identifies the researcher in academic databases, then retrieves their publication list."
+
+#### venue
+- **Role**: primary
+- **Value format**: Journal or conference name (e.g., "NeurIPS", "Nature Machine Intelligence")
+- **Requires ID resolution**: Only for OpenAlex (S2 accepts venue name directly).
+- **API translation**:
+  - S2: `venue={value}` as filter parameter on paper search
+  - OA: Step 1: `GET /sources?search={value}` → extract `id`. Step 2: `filter=primary_location.source.id:{id}`
+- **ID caching**: Cache OA source ID in `api_ids.openalex_id`.
+- **Validation**: Non-empty string. Warn if venue name is ambiguous (e.g., "Nature" matches many sub-journals).
+- **User explanation template**: "This will find papers published in this specific journal or conference. You can use it alone to browse a venue's publications, or combine with keywords to search within it."
+
+#### seed_paper
+- **Role**: primary
+- **Value format**: Paper title (display) + `paper_id` (internal reference to literature.json)
+- **Requires**: Paper must exist in literature.json with status `in_library`.
+- **Does NOT use keyword search**: Uses citation/recommendation APIs instead.
+- **Three operation modes** (agent must ask user which mode):
+  - `backward`: What does this paper cite? → `GET /paper/{s2_id}/references` (S2) or read `referenced_works` field (OA)
+  - `forward`: Who cites this paper? → `GET /paper/{s2_id}/citations` (S2) or `filter=cites:{oa_id}` (OA)
+  - `recommend`: Similar papers → `POST /recommendations/v1/papers` with positive_paper_ids (S2) or read `related_works` (OA)
+- **Multi-seed**: For recommend mode, multiple seed_paper factors are combined as positive examples to the Recommendations API.
+- **Combining with filters**: After retrieving candidate list via citation/recommendation, apply filter factors (year_range, field, etc.) as post-filters on the result set.
+- **Validation**: `paper_id` must exist in literature.json. `external_ids` must contain at least one API-resolvable ID.
+- **User explanation template**: "Instead of keyword search, this uses your selected paper as a starting point to trace its citation network or find similar papers. This is the best way to discover papers you wouldn't find through keywords alone."
+
+---
+
+### 1.2 Filter factors (must combine with at least one primary)
+
+#### field
+- **Role**: filter
+- **Value format**: Academic discipline name (e.g., "Computer Science", "Medicine")
+- **API translation**:
+  - S2: `fieldsOfStudy={value}` — flat list. Known values: Computer Science, Medicine, Physics, Mathematics, Biology, Chemistry, Engineering, Economics, Business, Political Science, Psychology, Sociology, Geography, History, Art, Philosophy, Environmental Science, Materials Science, Geology, Agricultural and Food Sciences, Education, Law, Linguistics
+  - OA: `filter=topics.id:{topic_id}` — 3-level hierarchy. Must resolve via `/topics?search={value}` first.
+- **Multiple fields**: OR logic. `fieldsOfStudy=Computer Science,Linguistics` returns papers in either field.
+- **User explanation template**: "This restricts results to papers classified under this academic discipline. Useful when a keyword has different meanings in different fields."
+
+#### pub_type
+- **Role**: filter
+- **Value format**: Publication type identifier
+- **API translation**:
+  - S2: `publicationTypes={s2_type}`. Values: JournalArticle, Conference, Review, Book, Dataset, ClinicalTrial, CaseReport, MetaAnalysis, Study, Editorial, LettersAndComments
+  - OA: `filter=type:{oa_type}`. Values: article, book, book-chapter, dataset, dissertation, editorial, erratum, letter, paratext, peer-review, preprint, report, standard, supplementary-materials
+- **Cross-API mapping table** (agent must translate):
+
+| User-facing label | S2 value | OA value |
+|---|---|---|
+| Journal article | JournalArticle | article |
+| Conference paper | Conference | article (no separate type) |
+| Review / survey | Review | article (filter by keyword) |
+| Book | Book | book |
+| Book chapter | — | book-chapter |
+| Preprint | — | preprint |
+| Dataset | Dataset | dataset |
+| Dissertation / thesis | — | dissertation |
+| Clinical trial | ClinicalTrial | — |
+| Meta-analysis | MetaAnalysis | — |
+
+- **User explanation template**: "This filters by publication format. Tip: searching for Reviews first is a great way to quickly understand a new field."
+
+#### year_range
+- **Role**: filter
+- **Value format**: String in format "YYYY-YYYY", "YYYY-" (open-ended), or "YYYY" (single year)
+- **API translation**:
+  - S2: `year={value}` — accepts "2020-2024", "2023-", "2024"
+  - OA: `filter=publication_year:{value}` — accepts "2020-2024", ">2022", "2024"
+- **Parsing rules**: Agent must parse user natural language into format:
+  - "papers from the last 3 years" → compute current_year-3 to current_year → "2023-2026"
+  - "recent papers" → default to "last 3 years" and confirm with user
+  - "since 2020" → "2020-"
+  - "2023 only" → "2023"
+- **User explanation template**: "This limits results to papers published within the specified time window."
+
+#### institution
+- **Role**: filter
+- **API support**: OpenAlex ONLY. S2 does not support institution filtering.
+- **Value format**: Institution name (e.g., "MIT", "Tsinghua University")
+- **Requires ID resolution**: Yes, via OA `/institutions?search={value}`.
+- **API translation**:
+  - S2: NOT SUPPORTED — do not include in S2 query. Agent MUST inform user.
+  - OA: `filter=authorships.institutions.id:{oa_institution_id}`
+- **Warning message to user** (MUST display when this filter is active):
+  > "Note: institution filtering is only supported by OpenAlex. Semantic Scholar results will not be filtered by institution."
+- **User explanation template**: "This filters for papers where at least one author is affiliated with this institution. Note: this only works with one of our two data sources (OpenAlex)."
+
+#### open_access
+- **Role**: filter
+- **Value format**: Boolean (true/false)
+- **API translation**:
+  - S2: `openAccessPdf` parameter (boolean)
+  - OA: `filter=is_oa:true`
+- **User explanation template**: "When enabled, only papers with freely available full-text PDFs will be returned. Useful when you need to download and analyze the full paper."
+
+#### citation_min
+- **Role**: filter
+- **Value format**: Integer (minimum citation count)
+- **API translation**:
+  - S2: `minCitationCount={value}`
+  - OA: `filter=cited_by_count:>{value-1}` (OA uses > operator, so subtract 1)
+- **Side effect warning** (MUST display when value > 0):
+  > "Note: minimum citation count filtering will exclude recently published papers that haven't had time to accumulate citations. Consider running a separate search without this filter to catch important new work."
+- **User explanation template**: "This sets a minimum number of times a paper has been cited by other papers. Higher values return more established/influential works, but will miss recent publications."
+
+#### funder
+- **Role**: filter
+- **API support**: OpenAlex ONLY.
+- **Value format**: Funding agency name (e.g., "National Science Foundation", "ERC")
+- **Requires ID resolution**: Yes, via OA `/funders?search={value}`.
+- **API translation**:
+  - S2: NOT SUPPORTED
+  - OA: `filter=awards.funder:{oa_funder_id}`
+- **Warning message to user**: Same pattern as institution — inform user this only works on OpenAlex.
+- **User explanation template**: "This filters for papers funded by a specific agency. Useful for tracking research output from particular funding programs. Note: only supported by OpenAlex."
+
+#### language
+- **Role**: filter
+- **API support**: OpenAlex ONLY.
+- **Value format**: ISO 639-1 language code (e.g., "en", "zh", "de", "fr")
+- **API translation**:
+  - S2: NOT SUPPORTED
+  - OA: `filter=language:{value}`
+- **Warning message to user**: Same pattern as institution.
+- **User explanation template**: "This filters by the language of the paper. Currently the system focuses on English literature, but this allows filtering for other languages when needed. Note: only supported by OpenAlex."
+
+---
+
+## 2. Query Composition Rules
+
+When composing a search from multiple active factors, follow these rules strictly:
+
+### Rule 1: At least one primary factor required
+If no primary factor (query/author/venue/seed_paper) is active, DO NOT execute a search. Ask the user to add or activate a search subject.
+
+### Rule 2: Multiple primary factors → OR
+Two active query factors: send separate API queries for each, merge and deduplicate results.
+query + author: search for papers by that author matching that keyword (intersection).
+Two authors: retrieve papers by either author, merge results.
+
+### Rule 3: All filters → AND
+All active filter factors apply simultaneously. A paper must satisfy ALL active filters to appear in results.
+
+### Rule 4: Same-type filters → OR
+Two field factors ("Computer Science" + "Linguistics"): paper must be in EITHER field.
+Two pub_type factors ("Review" + "Conference"): paper must be EITHER type.
+
+### Rule 5: API-limited filters require transparency
+When institution, funder, or language filters are active, the agent MUST:
+1. Include the filter in the OpenAlex query
+2. Omit the filter from the Semantic Scholar query
+3. Inform the user which filters are not applied to which API
+4. Format: "This search uses [N] factors. [Factor X] and [Factor Y] only apply to OpenAlex results. Semantic Scholar results are not filtered by these conditions."
+
+### Rule 6: seed_paper uses different API path
+seed_paper does not use keyword search endpoints. Workflow:
+1. Determine operation mode (backward/forward/recommend) — ask user if not specified
+2. Call citation/recommendation API
+3. Get raw candidate list
+4. Apply any active filter factors as post-filters (year_range, field, etc.)
+5. Score and rank with metric registry
+6. Present to user
+
+---
+
+## 3. User-Facing Confirmation Template
+
+Before executing any search, present the following to the user:
+
+```
+Search plan:
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+Search subjects:
+  • [type]: "[value]"               → [API parameter]
+  • [type]: "[value]"               → [API parameter]
+
+Filters:
+  • [type]: [value]                 → [API parameter]
+  • [type]: [value]                 → [API parameter]
+  • [type]: [value] ⚠ OpenAlex only → [API parameter]
+
+APIs to query: Semantic Scholar, OpenAlex
+Limitations: [filter X] will not apply to Semantic Scholar results.
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+Proceed? (yes / edit / cancel)
+```
+
+---
+
+## 4. Factor Management Operations
+
+The `search-factor-management` skill handles these operations:
+
+### Add factor
+1. User specifies type + value (or describes in natural language → agent extracts type + value)
+2. Agent validates: correct type? non-empty value? no duplicate in library?
+3. For types requiring ID resolution (author, venue, institution, funder): resolve immediately, cache in `api_ids`
+4. If resolution returns ambiguous results: present candidates to user for selection
+5. Write to search_factors.json with `active: true`
+6. Explain to user what this factor does using the explanation templates above
+
+### Activate / deactivate
+1. Set `active` field to true/false
+2. Inform user: "Factor [X] is now [active/inactive]. It [will/will not] be included in your next search."
+
+### Promote from content factor
+1. User selects a content factor from content_factors.json
+2. Agent creates corresponding search factor with `provenance: "promoted_from_content"`
+3. If matching content factors exist across multiple papers, agent reports: "This author appears in [N] papers in your library."
+4. Mark all matching content factors as `promoted: true`
+
+### Delete factor
+1. Remove from search_factors.json
+2. Update any content factors with `promoted: true` back to `promoted: false`
+3. Historical search sessions referencing this factor are NOT modified (they store factor snapshots)
+
+### List active factors
+Present current active factors grouped by role:
+
+```
+Active search factors:
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+Search subjects:
+  1. [query/topic] "RAG optimization"
+  2. [query/method] "dense passage retrieval"
+
+Filters:
+  3. [field] Computer Science
+  4. [year_range] 2022-2026
+  5. [open_access] true
+
+Inactive (stored but not in current search):
+  6. [author] "Patrick Lewis"
+  7. [citation_min] 50
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+```
+
+---
+
+## 5. Error Handling
+
+| Situation | Agent action |
+|---|---|
+| No primary factor active | Do not search. Ask user to add or activate a search subject. |
+| Author name resolves to 0 results | Inform user. Suggest checking spelling or trying alternate name forms. |
+| Author name resolves to multiple candidates | Present top candidates with affiliations. Let user choose. |
+| API rate limit hit | Wait and retry with exponential backoff (max 3 retries). Inform user if persistent. |
+| One API fails but other succeeds | Present results from working API. Note that results are partial. |
+| Filter not supported by one API | Apply filter only to supporting API. Clearly inform user. |
+| Search returns 0 results | Suggest: broaden time range, remove filters one by one, try synonym keywords. |
+| Search returns >500 results | Suggest: add filters to narrow down, increase citation_min, narrow time range. |
