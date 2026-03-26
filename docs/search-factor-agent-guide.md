@@ -44,7 +44,7 @@
   - OA: `authorships_author_display_name={value}` — accepts display name directly; the MCP tool handles ID resolution internally
 - **ID caching**: If the MCP tool resolves an author ID, it may be cached in the factor's `api_ids` field for faster subsequent searches.
 - **Disambiguation**: If name resolution returns multiple candidates, present top 3-5 to user with affiliations and paper counts. Let user select the correct person.
-- **Validation**: Non-empty string. If `api_ids` is empty, must resolve before searching.
+- **Validation**: Non-empty string.
 - **User explanation template**: "This will find all papers authored by this researcher. The system first identifies the researcher in academic databases, then retrieves their publication list."
 
 #### venue

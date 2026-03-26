@@ -90,7 +90,7 @@ search_openalex(
   authorships_author_display_name="<author>",     # Optional: author name
   type="<oa_type>",                               # Optional: e.g. "article", "review", "book"
   is_oa=true,                                      # Optional: only open-access papers
-  cited_by_count=">N",                            # Optional: minimum citations (use > operator)
+  cited_by_count=">N-1",                          # Optional: OA uses >, subtract 1 from user's minimum (e.g., min 50 → ">49")
   authorships_institutions_id="<oa_id>",          # Optional: institution filter (resolve ID first)
   language="<iso_code>",                           # Optional: e.g. "en", "zh"
   awards_funder="<oa_id>",                         # Optional: funder filter (resolve ID first)
