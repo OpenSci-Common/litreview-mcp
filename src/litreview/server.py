@@ -13,6 +13,7 @@ from litreview import (
     content_factors,
     dedup,
     factors,
+    graphs,
     library,
     relations,
     scoring,
@@ -614,7 +615,7 @@ def lr_content_promote(path: str = ".", type: str = "", value: str = "") -> dict
 
 
 # ---------------------------------------------------------------------------
-# Relations (2 tools)
+# Relations (1 tool — cache helper for LLM analysis)
 # ---------------------------------------------------------------------------
 
 
@@ -642,35 +643,84 @@ def lr_relation_cache_load(
     return relations.check_cache(papers, factor_values, cache)
 
 
-@mcp.tool()
-def lr_relation_build(
-    path: str = ".",
-    status: Optional[str] = None,
-    paper_factor_map: Optional[Dict[str, List[dict]]] = None,
-) -> dict:
-    """Build an interactive HTML relation graph and save to .litreview/.
+# ---------------------------------------------------------------------------
+# Graphs (5 tools)
+# ---------------------------------------------------------------------------
 
-    Shows author-paper and factor-paper relationships as a clickable graph.
-    Automatically saves analysis results to cache for incremental updates.
+
+@mcp.tool()
+def lr_graph_create(
+    path: str = ".",
+    name: str = "",
+    node_types: Optional[List[str]] = None,
+    edge_types: Optional[List[str]] = None,
+    paper_filter: Optional[dict] = None,
+) -> dict:
+    """Create a new graph configuration. Each graph is persisted independently.
 
     Args:
-        path: Absolute path to the workspace root.
-        status: Filter papers by status (e.g. "in_library"). None = all papers.
-        paper_factor_map: LLM analysis result mapping paper_id to related factors.
-            Format: {"paper_id": [{"factor_value": str, "relevance": "high"|"medium"|"low"}]}
+        path: Workspace root path.
+        name: Human-readable graph name.
+        node_types: Node types to include, e.g. ["paper", "author", "factor", "venue", "field"].
+        edge_types: Edge types to include, e.g. ["authored", "relates_to", "cites",
+                    "co_authored", "same_venue"].
+        paper_filter: Optional filter dict, e.g. {"status": "in_library"}.
 
     Returns:
-        {"path": str, "stats": {"papers": int, "authors": int, "factors": int, "edges": int}}
+        The graph config dict with graph_id.
     """
-    papers = library.list_papers(base_path=path, status=status)
-    active_factors = factors.list_factors(base_path=path, active_only=True)
-    factor_values = [f["value"] for f in active_factors]
-    return relations.save_graph_html(
+    return graphs.create_graph(
         base_path=path,
-        papers=papers,
-        factor_values=factor_values,
+        name=name,
+        node_types=node_types or [],
+        edge_types=edge_types or [],
+        paper_filter=paper_filter,
+    )
+
+
+@mcp.tool()
+def lr_graph_build(
+    path: str = ".",
+    graph_id: str = "",
+    paper_factor_map: Optional[Dict[str, List[dict]]] = None,
+) -> dict:
+    """Build/rebuild a graph: generate data, render HTML, persist everything.
+
+    Args:
+        path: Workspace root path.
+        graph_id: The graph to build (from lr_graph_create).
+        paper_factor_map: Optional LLM analysis: {paper_id: [{factor_value, relevance}]}.
+
+    Returns:
+        {"graph_id": str, "html_path": str, "data_path": str, "stats": dict}
+    """
+    return graphs.build_graph(
+        base_path=path,
+        graph_id=graph_id,
         paper_factor_map=paper_factor_map,
     )
+
+
+@mcp.tool()
+def lr_graph_list(path: str = ".") -> List[dict]:
+    """List all saved graphs with their stats, sorted by created_at desc."""
+    return graphs.list_graphs(base_path=path)
+
+
+@mcp.tool()
+def lr_graph_detail(path: str = ".", graph_id: str = "") -> dict:
+    """Get details of a specific graph config including stats and file paths."""
+    return graphs.graph_detail(base_path=path, graph_id=graph_id)
+
+
+@mcp.tool()
+def lr_graph_delete(path: str = ".", graph_id: str = "") -> dict:
+    """Delete a graph config and its associated HTML/data files.
+
+    Returns:
+        {"deleted": graph_id, "files_removed": [...]}
+    """
+    return graphs.delete_graph(base_path=path, graph_id=graph_id)
 
 
 if __name__ == "__main__":
