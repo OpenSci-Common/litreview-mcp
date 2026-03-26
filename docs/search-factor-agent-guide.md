@@ -60,7 +60,7 @@
 - **User explanation template**: "This will find papers published in this specific journal or conference. You can use it alone to browse a venue's publications, or combine with keywords to search within it."
 
 #### seed_paper
-- **Role**: primary
+- **Role**: primary (seed-type — always uses its own citation-API round; see Rule 6)
 - **Value format**: Paper title (display) + `paper_id` (internal reference to literature.json)
 - **Requires**: Paper must exist in literature.json with status `in_library`.
 - **Does NOT use keyword search**: Uses citation/recommendation APIs instead.

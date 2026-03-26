@@ -55,11 +55,13 @@ Display format:
 ```
 当前活跃的检索因子：
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-主检索因子（每个将单独搜索）:
-  [1] [query/topic]  "quantum error correction"
-  [2] [method] "surface codes"
-  [3] [keyword]      "topological qubits"
-  [4] [author]       "John Preskill"
+主检索因子:
+  关键词类（每个单独搜索一轮）:
+    [1] [query/topic]  "quantum error correction"
+    [2] [method]       "surface codes"
+    [3] [keyword]      "topological qubits"
+  轴类（附加到每轮关键词搜索中）:
+    [4] [author]       "John Preskill"
 
 过滤因子（应用于所有搜索轮次）:
   [5] [field]        Physics
