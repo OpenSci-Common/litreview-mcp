@@ -11,13 +11,13 @@
 
 #### query
 - **Role**: primary
-- **Sub-types**: topic | method | concept (stored in `sub_type` field; APIs treat all identically)
+- **Sub-types**: topic | concept (stored in `sub_type` field; APIs treat all identically). Note: `method` is a separate first-class primary factor type, not a sub_type of query.
 - **Value format**: Free-text string, typically 1-5 words
 - **API translation**:
   - S2: `query={value}` — matches title + abstract
   - OA: `search={value}` — matches title + abstract + fulltext
 - **Validation**: Non-empty string. Warn user if >8 words (overly specific queries return few results).
-- **Multiple query factors**: Combine with OR logic. Present results from all queries, rank by AI relevance score that rewards papers matching multiple queries.
+- **Multiple query factors**: Each runs in its own search round; results are merged and deduplicated. Papers appearing in multiple rounds are ranked higher by relevance score.
 - **User explanation template**: "This keyword will be searched against paper titles and abstracts. Papers containing this term (or closely related terms) will be returned."
 
 #### keyword

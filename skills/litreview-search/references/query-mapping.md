@@ -9,13 +9,13 @@ This reference table maps litreview factor types to the corresponding parameters
 | Factor Type  | `search_semantic`              | `search_openalex`               | `snowball_search`         | Notes                                      |
 |--------------|-------------------------------|----------------------------------|---------------------------|--------------------------------------------|
 | `query`      | `query=value`                 | `query=value`                   | N/A                       | Primary search string; use for both APIs   |
-| `keyword`    | Append to `query`             | Append to `query`               | N/A                       | Combine with `query` using AND/OR          |
+| `keyword`    | `query=value`                 | `query=value`                   | N/A                       | Own search round; same API param as query  |
 | `author`     | `author=value`                | `author.display_name=value`     | N/A                       | May need to search by author ID in OA      |
 | `venue`      | `venue=value`                 | `primary_location.source.display_name=value` | N/A      | Conference or journal name                 |
 | `field`      | `fields_of_study=value`       | `primary_topic.display_name=value` | N/A                    | Academic field classification              |
 | `year_range` | `year=start-end`              | `publication_year=start-end`    | N/A                       | Format: "2020-2024" → "2020:2024" in OA    |
 | `seed_paper` | N/A                           | N/A                             | `paper_id=doi_or_id`      | Use for forward/backward/both citation tracking |
-| `method`     | Append to `query`             | Append to `query`               | N/A                       | Treat as conceptual keyword                |
+| `method`     | `query=value`                 | `query=value`                   | N/A                       | Own search round; same API param as query  |
 | `exclude`    | Filter post-retrieval         | Filter post-retrieval           | Filter post-retrieval     | Remove matching papers from results        |
 | `pub_type`   | `publicationTypes=<s2_type>`  | `type=<oa_type>`                | N/A                       | See type mapping table below               |
 | `open_access`| `openAccessPdf` (boolean)     | `is_oa=true`                    | N/A                       | Filter for freely available PDFs           |
@@ -62,7 +62,7 @@ When `institution`, `language`, or `funder` filters are active, the agent MUST:
 
 ```
 search_semantic(
-  query="<query>",                        # Single primary keyword (do NOT combine multiple)
+  query="<single_primary_value>",          # ONE primary factor per round (do NOT combine multiple)
   author="<author_name>",                 # Optional: filter by author
   venue="<venue_name>",                   # Optional: filter by venue
   fields_of_study=["<field>"],            # Optional: list of fields
@@ -83,7 +83,7 @@ search_semantic(
 
 ```
 search_openalex(
-  query="<query>",                                 # Single primary keyword (do NOT combine multiple)
+  query="<single_primary_value>",                   # ONE primary factor per round (do NOT combine multiple)
   publication_year="<start>-<end>",               # Optional: year range
   primary_topic_display_name="<field>",           # Optional: topic/field filter
   primary_location_source_display_name="<venue>", # Optional: journal/conference
