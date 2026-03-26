@@ -13,6 +13,20 @@ This skill sets up a new literature review project by creating a workspace, extr
 
 ---
 
+## IMPORTANT: Path Rule
+
+All litreview MCP tool calls MUST pass the `path` parameter as the **absolute path** of the user's current working directory. NEVER omit `path` or use the default `"."` — the default resolves to the MCP server's process directory, not the user's project.
+
+Determine the user's project directory at the start (e.g. via `pwd`) and use it consistently:
+
+```
+lr_init(path="/absolute/path/to/user/project")
+lr_factor_add(path="/absolute/path/to/user/project", ...)
+lr_status(path="/absolute/path/to/user/project")
+```
+
+---
+
 ## Step 1: Create Workspace
 
 Call `lr_init` to initialize the `.litreview/` directory structure in the current working directory.

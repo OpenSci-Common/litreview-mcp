@@ -14,6 +14,14 @@ See `references/query-mapping.md` for factor-to-API parameter mapping details.
 
 ---
 
+## IMPORTANT: Path Rule
+
+All litreview MCP tool calls MUST pass the `path` parameter as the **absolute path** of the user's current working directory. NEVER omit `path` or use the default `"."` — the default resolves to the MCP server's process directory, not the user's project.
+
+Determine the user's project directory at the start (e.g. via `pwd`) and use it consistently for every `lr_*` call.
+
+---
+
 ## Step 1: Load Active Factors
 
 Call `lr_factor_list` to retrieve all active search factors:

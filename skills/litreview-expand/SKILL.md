@@ -15,6 +15,14 @@ See `references/expansion-prompts.md` for the abstract analysis prompt template.
 
 ---
 
+## IMPORTANT: Path Rule
+
+All litreview MCP tool calls MUST pass the `path` parameter as the **absolute path** of the user's current working directory. NEVER omit `path` or use the default `"."` — the default resolves to the MCP server's process directory, not the user's project.
+
+Determine the user's project directory at the start (e.g. via `pwd`) and use it consistently for every `lr_*` call.
+
+---
+
 ## Determine Expansion Mode
 
 At skill entry, determine which sub-workflow to use based on the user's intent:
