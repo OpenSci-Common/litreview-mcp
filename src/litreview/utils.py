@@ -70,6 +70,35 @@ def generate_paper_id(
     return digest[:12]
 
 
+def normalize_authors(raw) -> list[dict[str, str]]:
+    """Normalize authors to List[Dict] regardless of input format.
+
+    Handles:
+      - str: semicolon-separated names  ("A; B; C")
+      - List[str]: list of name strings  (["A", "B"])
+      - List[Dict]: already normalized   ([{"name": "A"}, ...])
+      - None / empty: returns []
+
+    Returns:
+        List of {"name": <str>} dicts (preserves extra dict keys if present).
+    """
+    if not raw:
+        return []
+    if isinstance(raw, str):
+        return [{"name": name.strip()} for name in raw.split(";") if name.strip()]
+    if isinstance(raw, list):
+        result: list[dict[str, str]] = []
+        for item in raw:
+            if isinstance(item, dict):
+                result.append(item)
+            elif isinstance(item, str):
+                result.append({"name": item})
+            else:
+                result.append({"name": str(item)})
+        return result
+    return []
+
+
 def safe_get_author_name(author) -> str:
     """Extract author name from either a string or a dict."""
     if isinstance(author, str):

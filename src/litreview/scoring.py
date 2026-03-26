@@ -65,9 +65,12 @@ def _score_open_access(oa_status: Optional[str]) -> float:
     return 0.0
 
 
-def _score_author_h_index(authors: Optional[list]) -> Optional[float]:
+def _score_author_h_index(authors) -> Optional[float]:
     """min(1, hIndex/100) from authors[0].hIndex or .h_index. None if missing."""
     if not authors:
+        return None
+    # Plain string (semicolon-separated) has no h-index data
+    if isinstance(authors, str):
         return None
     first = authors[0]
     if isinstance(first, str):

@@ -7,7 +7,7 @@ import re
 
 import pytest
 
-from litreview.utils import generate_id, generate_paper_id, normalize_title
+from litreview.utils import generate_id, generate_paper_id, normalize_authors, normalize_title
 
 
 class TestNormalizeTitle:
@@ -38,6 +38,49 @@ class TestNormalizeTitle:
         # punctuation removed, lowercase, whitespace collapsed
         assert "résumé" in result
         assert "cool" in result
+
+
+class TestNormalizeAuthors:
+    def test_none_returns_empty(self):
+        assert normalize_authors(None) == []
+
+    def test_empty_string_returns_empty(self):
+        assert normalize_authors("") == []
+
+    def test_empty_list_returns_empty(self):
+        assert normalize_authors([]) == []
+
+    def test_semicolon_separated_string(self):
+        result = normalize_authors("Alice; Bob; Charlie")
+        assert result == [{"name": "Alice"}, {"name": "Bob"}, {"name": "Charlie"}]
+
+    def test_semicolon_string_strips_whitespace(self):
+        result = normalize_authors("  Alice ;  Bob  ")
+        assert result == [{"name": "Alice"}, {"name": "Bob"}]
+
+    def test_semicolon_string_skips_empty_segments(self):
+        result = normalize_authors("Alice;; ;Bob")
+        assert result == [{"name": "Alice"}, {"name": "Bob"}]
+
+    def test_list_of_strings(self):
+        result = normalize_authors(["Alice", "Bob"])
+        assert result == [{"name": "Alice"}, {"name": "Bob"}]
+
+    def test_list_of_dicts_passthrough(self):
+        original = [{"name": "Alice", "hIndex": 42}, {"name": "Bob"}]
+        result = normalize_authors(original)
+        assert result == original
+
+    def test_mixed_list(self):
+        result = normalize_authors(["Alice", {"name": "Bob"}, 123])
+        assert result == [{"name": "Alice"}, {"name": "Bob"}, {"name": "123"}]
+
+    def test_single_author_string(self):
+        result = normalize_authors("Solo Author")
+        assert result == [{"name": "Solo Author"}]
+
+    def test_non_list_non_str_returns_empty(self):
+        assert normalize_authors(42) == []
 
 
 class TestGeneratePaperId:

@@ -14,6 +14,7 @@ from litreview import (
     dedup,
     factors,
     library,
+    relations,
     scoring,
     sessions,
     workspace,
@@ -609,6 +610,66 @@ def lr_content_promote(path: str = ".", type: str = "", value: str = "") -> dict
     """
     return content_factors.promote_content_factor(
         base_path=path, type=type, value=value
+    )
+
+
+# ---------------------------------------------------------------------------
+# Relations (2 tools)
+# ---------------------------------------------------------------------------
+
+
+@mcp.tool()
+def lr_relation_cache_load(
+    path: str = ".",
+    status: Optional[str] = None,
+) -> dict:
+    """Check which papers need LLM analysis and which have cached results.
+
+    Returns cached factor mappings and a list of uncached papers (with their
+    abstracts) so the LLM only needs to analyze new/changed papers.
+
+    Returns:
+        {
+            "cached_map": {paper_id: [{factor_value, relevance}]},
+            "uncached_papers": [{paper_id, title, abstract}],
+            "cache_hit": int, "cache_miss": int, "cache_stale": bool
+        }
+    """
+    papers = library.list_papers(base_path=path, status=status)
+    active_factors = factors.list_factors(base_path=path, active_only=True)
+    factor_values = [f["value"] for f in active_factors]
+    cache = relations.load_cache(base_path=path)
+    return relations.check_cache(papers, factor_values, cache)
+
+
+@mcp.tool()
+def lr_relation_build(
+    path: str = ".",
+    status: Optional[str] = None,
+    paper_factor_map: Optional[Dict[str, List[dict]]] = None,
+) -> dict:
+    """Build an interactive HTML relation graph and save to .litreview/.
+
+    Shows author-paper and factor-paper relationships as a clickable graph.
+    Automatically saves analysis results to cache for incremental updates.
+
+    Args:
+        path: Absolute path to the workspace root.
+        status: Filter papers by status (e.g. "in_library"). None = all papers.
+        paper_factor_map: LLM analysis result mapping paper_id to related factors.
+            Format: {"paper_id": [{"factor_value": str, "relevance": "high"|"medium"|"low"}]}
+
+    Returns:
+        {"path": str, "stats": {"papers": int, "authors": int, "factors": int, "edges": int}}
+    """
+    papers = library.list_papers(base_path=path, status=status)
+    active_factors = factors.list_factors(base_path=path, active_only=True)
+    factor_values = [f["value"] for f in active_factors]
+    return relations.save_graph_html(
+        base_path=path,
+        papers=papers,
+        factor_values=factor_values,
+        paper_factor_map=paper_factor_map,
     )
 
 

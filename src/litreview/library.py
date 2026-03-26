@@ -11,7 +11,7 @@ from typing import Any, List, Optional
 from tinydb import Query, TinyDB
 
 from litreview.models import Paper
-from litreview.utils import generate_paper_id, safe_get_author_name
+from litreview.utils import generate_paper_id, normalize_authors, safe_get_author_name
 
 
 def _get_db(base_path) -> TinyDB:
@@ -64,6 +64,8 @@ def add_paper(base_path, paper_data: dict) -> dict:
         # Build a Paper dataclass to enforce defaults, then merge all extra fields
         known_fields = {k: v for k, v in paper_data.items() if k in Paper.__dataclass_fields__}
         known_fields["paper_id"] = paper_id
+        # Normalize authors to List[Dict] before persisting
+        known_fields["authors"] = normalize_authors(known_fields.get("authors"))
         # Default to candidate status (user must explicitly promote to in_library)
         if "status" not in known_fields:
             known_fields["status"] = "candidate"

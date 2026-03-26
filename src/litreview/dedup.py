@@ -13,7 +13,7 @@ from typing import Any
 
 from rapidfuzz.fuzz import ratio
 
-from litreview.utils import normalize_title
+from litreview.utils import normalize_title, safe_get_author_name
 
 # External ID keys to check for level-2 matching (in priority order)
 _EXTERNAL_ID_KEYS = ("s2_paper_id", "openalex_id", "arxiv")
@@ -27,10 +27,14 @@ def _get_doi(paper: dict) -> str | None:
 
 def _get_first_author_lower(paper: dict) -> str | None:
     authors = paper.get("authors", [])
-    if authors:
-        name = authors[0].get("name", "")
-        return name.lower().strip() if name else None
-    return None
+    if not authors:
+        return None
+    # Handle str (semicolon-separated), List[str], and List[Dict] formats
+    if isinstance(authors, str):
+        first = authors.split(";")[0].strip()
+        return first.lower() if first else None
+    name = safe_get_author_name(authors[0])
+    return name.lower().strip() if name else None
 
 
 def _build_index(papers: list[dict]) -> dict[str, Any]:
