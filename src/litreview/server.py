@@ -302,6 +302,88 @@ def lr_score(
     )
 
 
+# ---------------------------------------------------------------------------
+# Search Ingest — one-step: dedup + score + persist as candidates + save session
+# ---------------------------------------------------------------------------
+
+
+@mcp.tool()
+def lr_search_ingest(
+    path: str = ".",
+    raw_results: Optional[List[dict]] = None,
+    input_factors: Optional[List[str]] = None,
+    factor_roles: Optional[Dict[str, str]] = None,
+    api_queries: Optional[List[dict]] = None,
+    weights: Optional[Dict[str, float]] = None,
+) -> dict:
+    """Ingest search results: deduplicate, score, persist all as candidates, and save session.
+
+    This is the recommended way to handle search results. All papers are saved to
+    literature.json with status="candidate" so they can be browsed, sorted, and
+    selectively accepted into the library later.
+
+    Returns:
+        {
+            "results_total": int,
+            "results_after_dedup": int,
+            "results_already_in_library": int,
+            "results_new": int,
+            "scored_papers": [top 20 with _score],
+            "session": {session dict},
+        }
+    """
+    raw = raw_results or []
+
+    # 1. Dedup against existing library
+    existing = library.list_papers(base_path=path)
+    dedup_result = dedup.dedup_papers(candidates=raw, existing=existing)
+    unique = dedup_result["unique"]
+    already_in = len(raw) - len(unique) - len([
+        d for d in dedup_result["duplicates"]
+        if d.get("matched_with") and isinstance(d["matched_with"], str) and len(d["matched_with"]) == 12
+    ])
+
+    # 2. Score
+    active = factors.list_factors(base_path=path, active_only=True)
+    active_values = [f["value"] for f in active]
+    w = weights or scoring.get_score_config(base_path=path)
+    scored = scoring.score_papers(papers=unique, weights=w, active_factor_values=active_values)
+
+    # 3. Persist all scored papers as candidates
+    batch_result = library.add_papers_batch(base_path=path, papers=scored)
+
+    # 4. Collect paper_ids for session
+    paper_ids = []
+    for p in batch_result.get("papers", []):
+        pid = p.get("paper_id")
+        if pid:
+            paper_ids.append(pid)
+
+    # 5. Save session
+    session_data = sessions.save_session(
+        base_path=path,
+        input_factors=input_factors or [f["id"] for f in active],
+        factor_roles=factor_roles or {},
+        api_queries=api_queries or [],
+        results_total=len(raw),
+        results_after_dedup=len(unique),
+        results_already_in_library=len(dedup_result["duplicates"]),
+        results_new=batch_result.get("added", 0),
+        result_paper_ids=paper_ids,
+        user_decisions={},
+    )
+
+    return {
+        "results_total": len(raw),
+        "results_after_dedup": len(unique),
+        "results_already_in_library": len(dedup_result["duplicates"]),
+        "results_new": batch_result.get("added", 0),
+        "duplicates_in_batch": batch_result.get("duplicates", 0),
+        "scored_papers": scored[:20],  # return top 20 for display
+        "session": session_data,
+    }
+
+
 @mcp.tool()
 def lr_score_config(
     path: str = ".",

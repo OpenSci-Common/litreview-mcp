@@ -8,7 +8,7 @@ description: >
 
 # litreview-search: Search and Rank Academic Papers
 
-This skill executes a structured literature search using registered factors, deduplicates and scores results, and presents ranked papers for user decisions.
+This skill executes a structured literature search, persists all results as candidates, and lets the user browse/sort/accept into the library.
 
 See `references/query-mapping.md` for factor-to-API parameter mapping details.
 
@@ -27,183 +27,147 @@ Determine the user's project directory at the start (e.g. via `pwd`) and use it 
 Call `lr_factor_list` to retrieve all active search factors:
 
 ```
-lr_factor_list(active_only=true)
+lr_factor_list(path="<project_path>", active_only=true)
 ```
 
 If no active factors are found, tell the user:
-> "尚未配置检索因子。请先运行「初始化litreview」或手动添加因子（例如：「添加检索因子 query: transformer」）。"
-
-Group factors by type for use in the next step.
+> "尚未配置检索因子。请先运行「初始化litreview」或手动添加因子。"
 
 ---
 
 ## Step 2: Compose Query Parameters
 
-Call `lr_factor_compose_query` to generate optimized API query parameters from the active factors:
+Call `lr_factor_compose_query` to generate query parameters from active factors:
 
 ```
-lr_factor_compose_query()
+lr_factor_compose_query(path="<project_path>")
 ```
 
-This returns a structured query plan with:
-- Primary query string
-- Author filters
-- Venue/source filters
-- Year range
-- Seed papers for snowball search
-- Recommended API endpoints
+Returns: primary_queries, filters, combined_query, factor_ids, factor_roles.
 
 ---
 
 ## Step 3: Show Query Plan for Confirmation
 
-Before executing any searches, present the query plan to the user transparently:
+**Before executing any searches**, present the query plan transparently:
 
 ```
 即将执行以下检索计划：
 
 主查询词: "large language model reasoning"
-API 端点: Semantic Scholar, OpenAlex
 过滤条件:
   - 年份: 2022-2024
   - 领域: artificial intelligence
-  - 会议: NeurIPS
+数据源: Semantic Scholar, OpenAlex
 每个来源返回数量: 50 篇
 
-是否确认执行？（可调整参数或添加/移除来源）
+是否确认执行？（可调整参数、数据源或返回数量）
 ```
 
-Wait for user confirmation. Allow user to:
-- Confirm and proceed
-- Adjust result count per source
-- Add or remove API endpoints
-- Modify query string
+Wait for user confirmation. Allow adjustments.
 
 ---
 
 ## Step 4: Execute Searches
 
-Based on the confirmed plan, call the paper-search MCP tools. Run searches in parallel where possible.
+Based on confirmed plan, call paper-search MCP tools:
 
-**Semantic Scholar search:**
 ```
-search_semantic(
-  query="<primary_query>",
-  limit=50,
-  year=<year_range>,
-  fields_of_study=<field_list>
-)
+search_semantic(query="<combined_query>", max_results=50)
+search_openalex(query="<combined_query>", max_results=50)
 ```
 
-**OpenAlex search:**
+**If seed_paper factors exist:**
 ```
-search_openalex(
-  query="<primary_query>",
-  limit=50,
-  publication_year=<year_range>,
-  primary_topic=<field>
-)
+snowball_search(paper_id=<seed_id>, direction="both", max_results_per_direction=30)
 ```
 
-**Snowball search** (only if `seed_paper` factors exist):
-```
-snowball_search(
-  paper_id=<seed_doi_or_id>,
-  direction="both",
-  limit=30
-)
-```
-
-Refer to `references/query-mapping.md` for the full mapping of factor types to API parameters.
-
-Inform the user of progress: "正在检索 Semantic Scholar... 正在检索 OpenAlex..."
+The Skill decides which sources to use based on user's research domain and preferences. Refer to `references/query-mapping.md` for factor-to-API mapping.
 
 ---
 
-## Step 5: Deduplicate Results
+## Step 5: Ingest Results (Dedup + Score + Persist)
 
-Combine all results from all sources and call `lr_dedup` to remove duplicate papers:
+**This is the critical step.** Call `lr_search_ingest` to persist ALL search results:
 
 ```
-lr_dedup(papers=<combined_results>)
+lr_search_ingest(
+  path="<project_path>",
+  raw_results=<combined_results_from_all_sources>,
+  input_factors=<factor_ids>,
+  api_queries=[{"api": "semantic_scholar", "results_count": 50}, ...],
+)
 ```
 
-Report deduplication statistics:
-> "共检索到 143 篇论文（Semantic Scholar: 50, OpenAlex: 50, Snowball: 43），去重后保留 98 篇。"
+This single call does:
+1. Deduplicates against existing library
+2. Scores all unique papers
+3. **Persists every result as `status="candidate"` in literature.json**
+4. Saves the search session with all metadata
+
+Returns top 20 scored papers for immediate display, plus statistics.
+
+**All results are now persisted** — even if the conversation ends, the user can come back and browse them.
 
 ---
 
-## Step 6: Score and Rank
+## Step 6: Show Ranked Results
 
-Call `lr_score` to score and rank all deduplicated papers against the active factors and scoring weights:
-
-```
-lr_score(papers=<deduped_results>)
-```
-
-This returns papers sorted by composite score with individual dimension scores.
-
----
-
-## Step 7: Show Ranked Results
-
-Present the top results in a readable format. Show at minimum the top 20 papers:
+Present results from the `lr_search_ingest` response:
 
 ```
-检索结果（共 98 篇，按相关性排序）：
+检索结果已保存（共 143 篇 → 去重后 98 篇 → 新增 93 篇候选）
 
-#1  [总分 0.92] Reasoning with Language Model Prompting: A Survey
-    作者: Shuofei Qiao et al. | 来源: arXiv 2023 | 引用: 412
-    相关性: 0.95 | 时效性: 0.88 | 引用量: 0.90
-    摘要: This paper surveys...
+Top 20 候选论文（按评分排序）：
 
-#2  [总分 0.87] Chain-of-Thought Prompting Elicits Reasoning in LLMs
-    作者: Jason Wei et al. | 来源: NeurIPS 2022 | 引用: 3241
+#1  [82.3分] Retrieval-Augmented Generation for Knowledge-Intensive NLP Tasks
+    Lewis et al. | NeurIPS 2020 | 引用: 3500 | 开放获取
+    摘要: We explore a general-purpose fine-tuning recipe...
+
+#2  [76.1分] Chain-of-Thought Prompting Elicits Reasoning in LLMs
+    Wei et al. | NeurIPS 2022 | 引用: 3241
     ...
 ```
 
-After displaying results, offer options:
-- "加入文献库" — add selected papers
-- "排除某篇" — exclude a paper
-- "调整权重后重新评分" — adjust weights and re-score
-- "查看完整摘要" — read full abstract of a paper
+---
+
+## Step 7: User Decisions
+
+User can now browse and decide:
+
+- **查看更多**: `lr_paper_list(path="<project_path>", status="candidate", sort_by="citation_count", limit=20, offset=20)`
+- **按不同方式排序**: `lr_paper_list(path="<project_path>", status="candidate", sort_by="year")` 或 sort_by="_score", "citation_count" 等
+- **接受入库**: `lr_paper_accept(path="<project_path>", paper_ids=[...])` — 状态变为 in_library
+- **排除**: `lr_paper_exclude(path="<project_path>", paper_id="...")` — 状态变为 excluded
+- **调整权重重新评分**: `lr_score_config(path="<project_path>", weights={...})` 然后重新 `lr_score`
+- **查看详情**: `lr_paper_detail(path="<project_path>", paper_id="...")`
+
+Continue until user signals done.
+
+> 提醒用户：所有搜索结果已持久化保存，可随时通过 `lr_paper_list(status="candidate")` 回来浏览。
 
 ---
 
-## Step 8: Wait for User Decisions
+## Step 8: Summary
 
-Process user decisions interactively:
-
-- **Add paper(s)**: Call `lr_paper_add` or hand off to `litreview-library` skill
-- **Exclude paper**: Call `lr_factor_add(type="exclude", value=<paper_id>)` to blacklist
-- **Adjust weights**: Call `lr_config(scoring_weights={...})` then re-run `lr_score`
-- **View details**: Call `read_semantic_paper` or `read_openalex_paper` for full metadata
-
-Continue until user signals they are done (e.g., "保存会话", "结束搜索", "好了").
-
----
-
-## Step 9: Save Session
-
-Call `lr_session_save` to record the search session for future reference:
+Summarize the session:
 
 ```
-lr_session_save(
-  query_plan=<composed_params>,
-  result_count=<total>,
-  added_count=<added>,
-  excluded_count=<excluded>
-)
-```
+本次搜索完成：
+  检索: 143 篇（Semantic Scholar 50 + OpenAlex 50 + Snowball 43）
+  去重后: 98 篇
+  新增候选: 93 篇
+  已接受入库: 12 篇
+  已排除: 3 篇
+  待审核: 78 篇候选
 
-Confirm to user:
-> "会话已保存。共添加 12 篇论文到文献库，排除 3 篇。可随时继续检索或扩展关键词。"
+搜索会话已保存，可随时继续审核候选论文。
+```
 
 ---
 
 ## Error Handling
 
-- If `search_semantic` or `search_openalex` returns an error, report it and continue with available results from other sources.
-- If `lr_dedup` fails, proceed with combined results and warn about potential duplicates.
-- If `lr_score` fails, display unranked results with a warning.
-- If no results are returned from any source, suggest: broadening the query, removing year filters, or running `litreview-expand` to discover alternative keywords.
+- If a search source returns an error, report it and continue with other sources.
+- If `lr_search_ingest` fails, fall back to calling `lr_dedup`, `lr_score`, `lr_paper_add_batch`, `lr_session_save` separately.
+- If no results from any source, suggest: broaden query, remove year filters, or use `litreview-expand`.
