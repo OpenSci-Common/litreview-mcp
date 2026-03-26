@@ -20,9 +20,9 @@ This reference table maps litreview factor types to the corresponding parameters
 | `pub_type`   | `publicationTypes=<s2_type>`  | `type=<oa_type>`                | N/A                       | See type mapping table below               |
 | `open_access`| `openAccessPdf` (boolean)     | `is_oa=true`                    | N/A                       | Filter for freely available PDFs           |
 | `citation_min`| `minCitationCount=N`         | `cited_by_count:>N-1`           | N/A                       | OA uses > operator, subtract 1             |
-| `institution`| ❌ NOT SUPPORTED               | `authorships.institutions.id=<oa_id>` | N/A              | OA only. Resolve ID via `/institutions?search=` |
+| `institution`| ❌ NOT SUPPORTED               | `authorships_institutions_id=<oa_id>` | N/A              | OA only. Resolve ID via `/institutions?search=` |
 | `language`   | ❌ NOT SUPPORTED               | `language=<iso_code>`           | N/A                       | OA only. ISO 639-1 code (e.g. "en", "zh") |
-| `funder`     | ❌ NOT SUPPORTED               | `awards.funder=<oa_id>`        | N/A                       | OA only. Resolve ID via `/funders?search=` |
+| `funder`     | ❌ NOT SUPPORTED               | `awards_funder=<oa_id>`        | N/A                       | OA only. Resolve ID via `/funders?search=` |
 
 ---
 
