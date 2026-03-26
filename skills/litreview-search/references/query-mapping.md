@@ -12,7 +12,7 @@ This reference table maps litreview factor types to the corresponding parameters
 | `keyword`    | `query=value`                 | `query=value`                   | N/A                       | Own search round; same API param as query  |
 | `author`     | `author=value`                | `authorships_author_display_name=value` | N/A               | Axis-type: co-attaches to keyword rounds   |
 | `venue`      | `venue=value`                 | `primary_location_source_display_name=value` | N/A      | Axis-type: co-attaches to keyword rounds   |
-| `field`      | `fields_of_study=value`       | `primary_topic.display_name=value` | N/A                    | Academic field classification              |
+| `field`      | `fields_of_study=value`       | `primary_topic_display_name=value` | N/A                    | Academic field classification              |
 | `year_range` | `year=start-end`              | `publication_year=start-end`    | N/A                       | Format: "2020-2024" → "2020:2024" in OA    |
 | `seed_paper` | N/A                           | N/A                             | `paper_id=doi_or_id`      | Use for forward/backward/both citation tracking |
 | `method`     | `query=value`                 | `query=value`                   | N/A                       | Own search round; same API param as query  |

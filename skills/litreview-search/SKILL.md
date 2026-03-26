@@ -62,6 +62,8 @@ Display format:
     [3] [keyword]      "topological qubits"
   轴类（附加到每轮关键词搜索中）:
     [4] [author]       "John Preskill"
+  种子论文类（独立轮次，使用引文/推荐 API）:
+    [5] [seed_paper]   "Attention Is All You Need"
 
 过滤因子（应用于所有搜索轮次）:
   [5] [field]        Physics
